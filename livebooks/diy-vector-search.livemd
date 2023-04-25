@@ -45,10 +45,9 @@ docs =
     end)
   end)
   |> List.flatten()
-  |> Enum.take(100)
 ```
 
-The code below takes a long time, about 20 minutes on my M1 MacBook, because `Jumanpp.parse!` calls the `jumanpp` command in a shell context.
+The code below takes a long time, because `Jumanpp.parse!` calls the `jumanpp` command in a shell context.
 
 ```elixir
 preprocessed =

@@ -45,6 +45,9 @@ docs =
     end)
   end)
   |> List.flatten()
+  |> Enum.shuffle()
+  # to avoid crushing when predicting
+  |> Enum.take(1000)
 ```
 
 The code below takes a long time, because `Jumanpp.parse!` calls the `jumanpp` command in a shell context.

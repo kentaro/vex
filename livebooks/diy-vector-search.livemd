@@ -1,4 +1,4 @@
-<!-- livebook:{"app_settings":{"slug":"antipop"}} -->
+<!-- livebook:{"app_settings":{"slug":"antipop"},"persist_outputs":true} -->
 
 # How to create your own vector search engine in Elixir
 
@@ -17,6 +17,12 @@ Mix.install(
 )
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
 ## Introduction
 
 Along with the emerging LLMs, vector search engines have become increasingly important nowadays. We will demonstrate how to create a DIY vector search engine to gain detailed knowledge about the technology.
@@ -32,6 +38,20 @@ dataset =
   |> Map.get(:body)
   |> Jason.decode!()
   |> Map.get("data")
+
+IO.puts("suppress the long long output...")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+suppress the long long output...
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
 ```
 
 ```elixir
@@ -47,7 +67,63 @@ docs =
   |> List.flatten()
   |> Enum.shuffle()
   # to avoid crushing when predicting
-  |> Enum.take(1000)
+  |> Enum.take(100)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+["ベトナム [SEP] 広南阮氏は、1611年からパーンドゥランガの領土を侵食し始める。鄭阮戦争の難民がメコンデルタへ流出すると、カンボジアの（在位：1618年-1628年）は、プレイノコール（現ホーチミン市）に難民を受け入れ及び徴税のために税関事務所を建設することを許可した。これによってメコンデルタのベトナム化が進行したことで、広南阮氏の南下を呼び込む結果になる。1681年、ダナン沖に明朝遺臣を名乗る楊彦迪（ズオン・ガン・ディック）、陳上川（チャン・トゥオン・スィエン）らの率いる50隻余の艦隊が出現して広南国への亡命を申し出ると、広南国はメコンデルタへの入植に彼らを活用することとなった",
+ "シュルレアリスム [SEP] また、『革命に奉仕するシュルレアリスム』誌の後続誌で、シュルレアリスムの美術雑誌としても重要なのは『』であった。を発行人、を美術主幹として1933年6月に創刊された同誌は、1937年の第10号からブルトン、エリュアール、デュシャンらが編集委員として参加し、事実上、シュルレアリスムの雑誌となり、オーストリアの画家ヴォルフガング・パーレン、ドイツの人形作家・写真家ハンス・ベルメール、ベルギーの画家ポール・デルヴォー、チリの画家ロベルト・マッタ、スイスの彫刻家アルベルト・ジャコメッティらの作品が掲載された。",
+ "ブルガリアの歴史 [SEP] 1277年にイヴァイロが反乱を起こして皇帝に即位した。しかし、クマン人の流れを汲む地方の封建貴族であったテルテル家のゲオルギ1世テルテルがクーデターを起こして皇帝に即位したものの、他の封建貴族も半独立状態で乱立していた。ゲオルギ1世テルテルは、対外政策ではジョチ・ウルスに臣従を誓い、国内ではなおも止まない政争で分裂状態へと陥った。1299年のジョチ・ウルスの内乱時には、亡命してきたモンゴル人のチャカが皇帝に即位した。シシュマン家の時代にはセルビア王国との抗争で国力を疲弊させていった。",
+ "古細菌 [SEP] 分裂に伴う細胞膜の切断やDNAの分配は細菌に似ていると言われている。を始めとしたユーリ古細菌のゲノム上にはFtsZ、MinDなどが存在し、細菌と同様、Zリングの収縮で細胞を分裂させると考えられている。",
+ "国会議事堂 [SEP] 両議場とも、議員は先例によりジャケットと議員バッジの着用がないと入場が許されない。これには一切の例外が認められておらず、かつて福田赳夫元総理がバッジをつけ忘れて衆議院議場に入ろうとしたところ、衛視に制止されて、あわてて辺りにいた別の議員（森喜朗）からバッジを借りて入場したこともある。",
+ "ラクダ [SEP] オスは6歳にならないと交尾が可能とならず、発情期は年に1回しかない。メスも他の家畜と比較して成熟に多くの時間が必要であり、妊娠期間は12ヶ月近くに及ぶ。",
+ "水素イオン指数 [SEP] また水溶液のガラス電極によるpH測定において、信頼性の高い値が得られるのはpHがおよそ1 - 12の範囲内、イオン強度は0.1以下である。まず濃厚な酸の水溶液をガラス電極により測定する場合、ガラス電極表面の膨潤および陰イオンの吸着などが影響し、酸誤差が生じる。次に濃厚な塩基水溶液の場合はガラス電極表面への陽イオンの吸着などの影響によりアルカリ誤差を生じ、これは陽イオンのイオン半径が小さいほど大きい傾向がある。",
+ "ペルム紀 [SEP] ペルム紀の初期には、ゴンドワナ大陸が南極地域にあり、大規模な氷床が発達していたため、気候は寒冷だった。しかしゴンドワナ大陸が北上して南極地域を脱したことから、氷床は融解しはじめ、気温は上昇に転じた。ペルム紀の末期には激しい気温上昇が起こり、地球の平均気温は23℃にも達した。これは、6億年前から現在まででもっとも高い気温である。こうした気候の中で、パンゲアの内陸部には砂漠化が進行していた。",
+ "フィリピン [SEP] アブ・サヤフ・グループ (Abu Sayyaf Group) は、フィリピンのミンダナオ島、スールー諸島、ボルネオ島、および、インドネシア、マレーシア、タイ、ミャンマーなどの東南アジア地域にイスラム教で統治する国家の設立を目ざして、1990年にフィリピン政府に対して武装闘争を開始した。アブ・サヤフ・グループは、フィリピン政府軍および一般市民に対して爆弾攻撃、暗殺、誘拐・監禁、身代金要求を繰り返し、2000年以後は活動地域をマレーシア、インドネシアへも拡大し、2013年現在、武力闘争を継続中である。",
+ "徳光和夫 [SEP] 大のギャンブル好きである。特にボートレースが大好きであり、選手の心理状況や家族構成まで調べるくらいに熱中している。日テレ時代に『ズームイン!!朝!』を担当していた時は、番組が終わるとほぼ毎日のように平和島競艇場に直行していたと言われている。「競馬は遊び、競艇は勝負」が口癖でもあるという。",
+ "日本年金機構 [SEP] 同年3月13日には、内閣は同国会に社会保険庁の廃止と日本年金機構の設置などを定めた「日本年金機構法案」を提出し、同法案は同年6月30日に成立し、同年7月6日に公布された。同法案において「日本年金機構」は、役職員の身分を非公務員とする特殊法人とされた。",
+ "背広 [SEP] 世界的に普及することで、地域独特の文化をも生み出してもいる。一つは長くフランスやベルギーなどの植民地となりまた戦争を経験している、コンゴ民主共和国やコンゴ共和国などにおけるサプールと呼ばれる人たちである。多くは豊かではない労働者で日常は作業着などで仕事をしているが、水道が普及していない環境でも体や服の清潔を保ち、収入の多くを高価な背広に費やし、ハレの日などには濃い肌や髪や瞳の色と互いに引き立て合う鮮やかな色調の着こなしで現れ、平和と自由を尊重して人生を楽しみ、尊敬される人たちである。",
+ "アルファ粒子 [SEP] アルファ粒子（アルファりゅうし、α粒子）は、高い運動エネルギーを持つヘリウム4の原子核である。陽子2個と中性子2個からなる。放射線の一種のアルファ線（アルファせん、α線）は、アルファ粒子の流れである。",
+ "サル [SEP] ペットとして飼育されることもあるが、たいていの場合、大人になると気が荒くなり、一般的には飼育が困難である。しかも、知能が高いため、いたずらが巧妙を極め、逃げ出すこと、室内を破壊することが多いという。しかし、サルをペットとする歴史その物は古く、古代中国ではテナガザルを飼うのは王侯の楽しみであったと言う。なお、現在でも、オランウータンやゴールデンライオンタマリンなどが絶滅危惧に追いやられている主な原因がペット目的の捕獲である。",
+ "朝日放送ラジオ [SEP] 周波数はAMラジオ1008kHz、FMラジオ93.3MHz（詳細は#送信所を参照）。放送の起点は4:35（土・日は4:30）で、日曜深夜（=月曜未明）には、原則として0:35 - 4:35をメンテナンスタイムとして放送を休止する（2021年10月改編現在）。",
+ "自由権 [SEP] 現代では「積極的権利」や「福祉的権利」の比重が著しく増大し、国際人権規約でもまず社会権的なA規約があり、然る後に自由権的なB規約があるなど、具体的人間に即して人権の問題を考えようとする傾向がみられ、「自由権」と「社会権」あるいは「消極的権利」と「積極的権利」という区別はあまり意識されなくなっている。市民的及び政治的権利に関する国際規約（自由権規約）では法の下の平等や生存権なども保障されている（学術上の分類としては、法の下の平等は他の個別的諸権利の保障の基礎的条件をなす権利であり「包括的権利」などとして位置づけられる。また、生存権は「積極的権利」あるいは「社会権」などとして分類される）。",
+ "米沢藩 [SEP] このような深刻な財政難にも関わらず、第3代藩主綱勝は藩士に対して倹約を命じつつ自らは大好きな能楽にのめり込み、明暦3年（1657年）の火事では城下の東600戸を焼失したにも関わらず6000人の家臣を動員して狩りを行い、それに要した費用は代官や商人から借りることで補い、米沢藩の借金生活がこの時から開始された。綱憲は実父吉良義央夫妻の浪費による負債2780両を立て替えた上に、藩主の実父であるとして毎年6000両の援助金を送り、元禄11年（1698年）の鍛冶橋における吉良屋敷類焼では呉服橋に8000両の費用をかけて新邸を造築した上、米沢から大工50人を派遣した。さらに麻布藩邸などの新築、参勤交代などでの奢侈を行い、藩の貯金を一般会計に流用するまでに至る。",
+ "太平洋戦争 [SEP] ルメイの新戦術の最初の作戦は3月10日の東京大空襲となった。325機のB-29は3月9日の午後5時15分にマリアナ諸島のアメリカ軍基地を出撃すると、3月10日の午前0時5分に第一弾を投下した。空襲はルメイの計画通り大成功となり、たった一晩で83,000人の住民が死亡し、26万戸の家屋が焼失したが、他の焼夷弾爆撃と桁違いの被害をもたらせた最大の原因は関東大震災のさいにも発生した火災旋風が大規模に発生したためであった。東京大空襲からわずか10日間の間に、ルメイは名古屋、大阪、神戸などの大都市に延べ1,595機のB-29を出撃させたが、この機数はそれまでマリアナから日本本土を爆撃した延べ機数の3倍の数であり、投下した9,365トンという爆弾の量も、3月9日までに投下した爆弾量の3倍となった。日本の都市が焼夷弾攻撃に極めて脆いことが実証され、東京大空襲を境にして対日戦略爆撃の様相は一変してしまった。",
+ "士官 [SEP] 軍艦など高度な科学技術を用いて設計、製造、配備、操作、運用、整備される武器、装備品や機関を取り扱うため、海軍の下士官兵はそれら兵器類の取り扱いに習熟していなければならない。准士官の兵曹長が、砲術科、水雷科など各科での実務面のリーダーである掌砲長、信号長、電信長、掌整備長などになっていた が、下士官からの叩き上げでは兵曹長より上には、名誉進級か戦死に伴った昇進の場合を除いて進級できなかった。",
+ "フィリピン [SEP] アメリカの支配を受けていた経緯から、日本と同じく軍事的、経済的、政治的にアメリカとの関係が深い。フィリピンは植民地支配から独立したが、アメリカが介入した朝鮮戦争、ベトナム戦争にも参戦し、現在行われている対テロ戦争にも参戦、反対世論が多かったイラク戦争（武装勢力によるフィリピン人拉致事件でフィリピン軍はイラクから全面撤退した）に同調し、東南アジア条約機構や米比相互防衛条約を結んでいる。",
+ "家制度 [SEP] 1896年の民法典制定前の「家」は、あたかも莫大な権利義務を有する法人のようなものであった。戸主個人は権利義務の主体ではなく、家の代表者として強大な権利を行使するかわりに、家産・家業・祭祀を維持する重い責務を負う存在にすぎなかった。ところが明治維新によって職業選択の自由が確保されると、このような生活モデルは崩壊する。諸外国の例を見ても、家父長制が徐々に崩壊して個人主義へ至ることが歴史の必然と思われたが、かといって未だ慣習として家族制度が根付いている以上、法律をもって強引に家制度を無くすことも憚られた。そこで、近い将来の改正を前提とし、所有権と平仄を整え、戸主権の主体を家ではなく戸主個人としたうえで家産を否定し、戸主の権限を従前よりも大幅に縮小する過渡的な暫定規定を置くこととしたのである。",
+ "東南アジア [SEP] サバンナ平原 - 大陸東南アジアでは、乾いた北東モンスーンの影響で、冬季には強い乾季があり、雨季に茂り乾季に落葉する雨緑林が多い。ビルマ平原では、南西モンスーンの影響で乾燥地帯になる。古い時代から平原畑作が進み、周りの山地からの流水を利用した灌漑が発達している。東北タイのコラート平原、カンボジア平原では、雨季と乾季の降水量に差があるが、雨緑林が形成される。夏季には長期に降水があり、天水稲作が広がっている。",
+ "千島列島 [SEP] 択捉島以南（北方四島）の占領は、8月28日に樺太制圧が終了した第一極東軍を転用した。南千島占領部隊は8月26日に大泊を出航し8月29日に択捉島を占領、9月1日に国後島と色丹島に上陸し、9月2日に日本が正式に降伏する間も軍を進めたが、両島の制圧には9月4日まで費やした。9月5日に歯舞群島を占領して一連の計画は完了したが、占守島侵攻で時間を費やさなかったら北海道本島も侵略されていたと見る者もいる。",
+ "コントラバス [SEP] 各弦の音とポジションの関係は次の通りである。0は開放弦である。",
+ "立命館大学 [SEP] 学校法人立命館 学園一貫教育推進本部により小・中・高は附属校に位置づけられている。また、立命館高等学校は「1905年9月京都法政大学の附属校として清和普通学校を設立」と明記している。",
+ "タイ王国 [SEP] 日本の住友商事や電源開発などの建設により火力発電所が稼働している。またタイ国家原子力技術研究所・タイ原子力平和利用事務局によって原子力発電所の建設が研究・検討されている。2010年11月22日にタイ発電公社（EGAT）が日本原子力発電と原子力発電技術協力協定を締結した。",
+ "万葉集 [SEP] 歌体や題材により歌を分類している。平安時代末期の書写。3834首が現存する。中山家、大谷家を経て、龍谷大学が所蔵している。",
+ "ステンレス鋼 [SEP] 一般の炭素鋼と同様に、フェライト系、マルテンサイト系が低温環境に置かれると靭性が低下し、脆性破壊を起こすようになる。靭性が著しく低下する温度を延性-脆性遷移温度といい、フェライト系 430 の例では、室温から約 −70 °C までの間で衝撃強さが急激に低下する。しかし、オーステナイト系はこのような低温時にも高い靭性を保つ。鋼種にもよるが、オーステナイト系は −200 °C 以下の極低温でも使用できる。オーステナイト・フェライト系は、低温時に脆性破壊を起こすが、フェライト系よりは延性-脆性遷移が緩やかに起きる傾向にある。",
+ "ヘブライ語 [SEP] 現代ヘブライ語は5母音で、ティベリア式発音のはに変化し、または語源によってまたはのいずれかに発音される。シュワーは（発音される場合には）と同音であり、超短母音は通常の母音と同様に発音される。二重母音はの3種類がある。",
+ "学名 [SEP] また、科の下に を立てることもある。この階級に対する訳語は動物学と植物学で異なり、動物学では族、植物学では連と呼ばれる。",
+ "J-STAGE [SEP] たまにCiNiiとJ-STAGEの両方で同じ文献が重複してPDF化されていることがある。こうした場合に、CiNiiのファイルは画像データで文字検索ができないが、J-STAGEのファイルはテキスト化されていて文字検索できるといった違いが生じる場合がある。",
+ "国際連盟 [SEP] 連盟は、を建設する労働者の死亡率を55%から4%に下げることにも成功した。また、奴隷制、売春、女性や子供の人身売買などを取り締まるための記録も残された。国際連盟の圧力により、1923年にアフガニスタン、1924年にイラク、1926年にネパール、1929年にとペルシャ、1937年にバーレーン、1942年にエチオピアで奴隷制が廃止された。",
+ "川崎フロンターレ [SEP] 4月11日に相馬を解任した。望月達也が監督代行し、同月23日、筑波大監督の風間八宏が監督に就任した。7月1日に風間監督の長男である風間宏希と風間宏矢が入団し、Jリーグ史上初めて同時に父が監督、息子が選手として所属した。",
+ "ノースカロライナ州 [SEP] 1836年10月25日、港湾都市のウィルミントンと州都ローリーを繋ぐウィルミントン・アンド・ローリー鉄道の建設が始まった。1849年、州議会の法によりこの鉄道を西のグリーンズボロ、ハイポイント、シャーロットまで延伸するノースカロライナ鉄道が創設された。南北戦争のとき、この鉄道のウィルミントン、ローリー区間は南軍の戦争遂行のために重要なものとなった。ウィルミントンで物資が積まれ、鉄道でローリーを通り、アメリカ連合国の首都バージニア州リッチモンドに運ばれた。",
+ "ラスタファリ運動 [SEP] 自然回帰指向のラスタファリズムにとって、大麻は神聖な植物であるとされる。もともとは呪術的な色の濃いアフリカ土着的な宗教主流だったころから、大麻は薬草として扱われてきた。ラスタ出現以降は、大麻の吸引はバビロン社会への反抗の手段という意味にもとれる。ラスタ思想において、ガンジャは精神をより穏やかなものにする、とされている。",
+ "武器 [SEP] 原子力エネルギーを用いた武器には携帯型核弾頭からMIRVまで幅広く存在する。主に冷戦中に多く作られたが、2つの爆弾を除いて実戦での使用は無い。",
+ "太平洋戦争 [SEP] 昭和25年10月復員局調製「対蘇作戦記録」によると、関東軍はソ連参戦に備えてあらかじめ満州国軍の反乱防止策・戦力削減を行っていた。しかしそれでも「満州国軍隊は其の大部反乱するに至りたり」となった。",
+ "国際連盟 [SEP] アメリカのウッドロウ・ウィルソン大統領はエドワード・M・ハウス大佐に対し、「十四か条の平和原則」で初めて示した自身の理想主義的な考えと、フィリモア委員会の活動を反映したアメリカの計画を起草するよう指示した。ハウスの作業とウィルソン自身の初稿で、スパイ活動や不正行為を含む「非倫理的」な国家行動を排除することが提案された。不従順な国家に対する強制手段としては、例えば、「その国の国境を封鎖して、世界のどの地域とも通商や交流ができないようにし、必要な武力を行使する...」などの厳しい措置が含まれた。",
+ "日本相撲協会 [SEP] 解雇を行う場合、理事会の4分の3の賛成で決議される。養老金、勤続加算金（一般企業の退職金に相当）は理事会において支給見送りの付帯決議がなされなかった場合、本人からの請求によって支払われる。特別功労金（一般企業の特別退職金に相当。横綱・大関のみ）は支払われない。",
+ "懲戒処分 [SEP] 特に裁判例では手続の適正が重視される傾向にあり、労働者の行為と懲戒との釣り合い（平等取り扱いの原則）、社会通念上の相当性、事前弁明の機会の付与などを要件としていることが多い。さらに、刑事犯罪等に該当しない場合には、事前の指導や注意、警告、段階的懲戒も必要とされることが多い。",
+ "高知放送 [SEP] 株式会社高知放送（こうちほうそう、Kochi Broadcasting Co., Ltd.）は、高知県を放送対象地域とした中波放送（AM放送）事業とテレビジョン放送事業を兼営している特定地上基幹放送事業者である。略称は旧社名「ラジオ高知」からRKC（Radio Kochi Company）。ホームページ等では、RKC高知放送と記載されている。",
+ "ボーイング747 [SEP] 1982年に初号機がロールアウトした後に、スイス航空（現・スイス インターナショナル エアラインズ。ルフトハンザ・ドイツ航空が買収）へ納入された。後にシンガポール航空（「BIGTOP」の愛称が付いたが全機売却済み）、UTA（UTA、現エールフランス）、日本航空、南アフリカ航空、キャセイパシフィック航空、ヴァリグ・ブラジル航空、マレーシア航空、サベナ・ベルギー航空（2001年に倒産）等へ納入された。",
+ "最澄 [SEP] 止観業とは智顗が著した『摩訶止観』に由来する。『摩訶止観』は仏道修行の基礎的な規範を記したもので、実践と修行の立場から法華経を解釈したものとされる。最澄は『勧奨天台宗年分学生式』に「止観業は四種三昧を修習せしめ（後略）」と記すように、『摩訶止観』に記される実践行である四種三昧の実践を重視していた。そして実践の場として最澄は四種三昧堂の建立を図ったが、この堂は『弘仁九年比叡山寺僧院之記』に一乗止観院に続いて記されていることから延暦寺伽藍構想においても重要視されていたことが分かる。",
+ "中継局 [SEP] 地上基幹放送において、地勢的な影響で親局送信所だけでは放送区域をカバーできない時に、親局とは別の場所に設けられる補助的な地上基幹放送局である。日本では、サテライト局（空中線電力0.1W以下の小規模な中継局はミニサテライト局（ミニサテ局）と呼ばれることが多い）と、英語ではトランスポーザという。中継方法としては、演奏所（スタジオ）・親局からの専用線（主に中波放送・短波放送）や、無線（STL）で送信する方法、親局の電波を受信し周波数を変換して送信する放送波中継（主に超短波放送（FM放送）・テレビジョン放送）がある。なお、1990年代以降に開設された、いわゆる平成新局は資金が乏しいことから、アナログテレビ放送では中継局が少なめであることが多かった。",
+ "子音 [SEP] これはアラビア語等にも見られるが、インド・ヨーロッパ祖語もそうだったと考えられており、比較的古いスラヴ語派では vlf の様に子音のみの単語が存在したり、母音が無い時に母音に近い性質を持つ、[m], [n], [l], [r] 等が母音の役目をする事がある。この場合子音の下に を付けて表す。",
+ "デトロイト・タイガース [SEP] は開幕から40試合で35勝5敗という驚異的なペースで勝ち星を重ねた。最終的に104勝58敗という圧倒的な成績をあげ、断トツ（2位トロント・ブルージェイズとは15ゲーム差）で地区優勝を果たした。",
+ "ベラルーシ [SEP] ベラルーシの主な天然資源は森林で、国土の45.3%もの面積を占めている。その他に泥炭、花崗岩、泥灰岩、チョークが採れる。少量の石油と天然ガスも産出されるが、国内需要を満たす規模ではなく、エネルギー資源の大半をロシアからの輸入に依存している。",
+ "日系人 [SEP] 日系人はしばしば複数の国籍を持っている。1985年以降、日本は国籍に関して主に「父母両系統血統主義」（親のいずれかが日本国民ならば日本国籍を取得できる）である。一方で日本人が多く移住した北米・南米の多くの国は主に「出生地主義（生地主義）」（生まれた国の国籍を取得できる）を採っているためである。近年の改正により、出生地主義国も血統主義的な要素を、血統主義国も出生地主義的要素を統合する傾向がある。例えばカナダ人夫婦の子供は、カナダ国外で生まれてもカナダ国籍が与えられる。",
+ "カール・マルクス [SEP] こうした状況の中、マルクスは今の好景気が続く限り、革命は起こり得ないと結論するようになり、共産主義者同盟のメンバーに対し、即時行動は諦めるよう訴えた。だが共産主義者同盟のメンバーには即時行動を求める者が多かった。マルクスの独裁的な組織運営への反発もあって、とりわけヴィリヒが反マルクス派の中心人物となっていった。シャッパーもヴィリヒを支持し、共産主義者同盟内に大きな亀裂が生じた。",
+ "東京メトロ日比谷線 [SEP] 日中時間帯の運転間隔は、10分の間に線内列車と東武伊勢崎線直通列車が交互に運行されている。東武伊勢崎線直通列車は1時間あたり東武動物公園駅発着列車が4本、南栗橋駅発着列車が2本運行されている。",
+ ...]
 ```
 
 The code below takes a long time, because `Jumanpp.parse!` calls the `jumanpp` command in a shell context.
@@ -68,6 +144,62 @@ preprocessed =
   |> Enum.to_list()
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+["広南 阮氏 は 、 1611 年 から パーンドゥランガ の 領土 を 侵食 し 始める 。 鄭 阮 戦争 の 難民 が メコンデルタ へ 流出 する と 、 カンボジア の （ 在位 ： 1618 年 - 1628 年 ） は 、 プレイノコール （ 現 ホーチミン市 ） に 難民 を 受け入れ 及び 徴税 の ため に 税関 事務 所 @ を 建設 する こと を 許可 した 。 これ に よって @ @ @ メコンデルタ の ベトナム 化 が 進行 した こと で 、 広南 阮氏 の 南下 を 呼び 込む 結果 に なる @ 。 1681 年 、 ダナン 沖 に 明朝 遺 臣 を 名乗る 楊 彦 迪 （ ズオン ・ ガン @ @ ・ ディック ） 、 陳 上川 （ チャン ・ トゥオン ・ スィエン ） ら の 率いる 50 隻 余 の 艦隊 が 出現 して 広南 国 @ へ の 亡命 を 申し出る と 、 広南 国 @ は メコンデルタ へ の 入植 に 彼 ら を 活用 する こと と なった @",
+ "また 、 『 革命 に 奉仕 する シュルレアリスム 』 誌 の 後続 誌 で 、 シュルレアリスム の 美術 雑誌 と して も 重要な の は 『 』 であった 。 を 発行 人 @ 、 を 美術 主幹 と して 1933 年 6 月 に 創刊 さ れた 同 誌 は 、 1937 年 の 第 10 号 から ブルトン 、 エリュアール 、 デュシャン ら が 編集 委員 と して 参加 し 、 事実 上 、 シュルレアリスム の 雑誌 と なり @ 、 オーストリア の 画家 ヴォルフガング ・ パーレン 、 ドイツ の 人形 作家 ・ 写真 家 ハンス ・ ベル メール 、 ベルギー の 画家 ポール ・ デルヴォー 、 チリ の 画家 ロベルト ・ マッタ 、 スイス の 彫刻 家 アルベルト ・ ジャコメッティ ら の 作品 が 掲載 さ れた 。",
+ "1277 年 に イヴァイロ が 反乱 を 起こして 皇帝 に 即位 した 。 しかし 、 クマン 人 @ の 流れ を 汲む 地方 の 封建 貴族 であった テルテル 家 の ゲオルギ 1 世 テルテル が クーデター を 起こして 皇帝 に 即位 した もの の 、 他の 封建 貴族 も 半 独立 状態 で 乱立 して いた 。 ゲオルギ 1 世 テルテル は 、 対外 政策 で は ジョチ ・ ウルス に 臣従 を 誓い 、 国 @ 内 で は なおも 止ま ない 政争 で 分裂 状態 へ と 陥った 。 1299 年 の ジョチ ・ ウルス の 内乱 時 @ に は 、 亡命 して きた モンゴル 人 @ の チャカ が 皇帝 に 即位 した 。 シシュマン 家 の 時代 に は セルビア 王国 と の 抗争 で 国力 を 疲弊 さ せて いった 。",
+ "分裂 に 伴う 細胞 膜 の 切断 や DNA の 分配 は 細菌 に 似て いる と 言わ れて いる 。 を 始め と した ユーリ 古 細菌 の ゲノム 上 に は FtsZ 、 MinD など が 存在 し 、 細菌 と 同様 、 Z リング の 収縮 で 細胞 を 分裂 さ せる と 考え られて いる 。",
+ "両 議場 と も 、 議員 は 先例 に より @ @ @ ジャケット と 議員 バッジ の 着用 が ない と 入場 が 許さ れ ない 。 これ に は 一切 の 例外 が 認め られて おら ず 、 かつて 福田 赳夫 元 総理 が バッジ を つけ @ @ @ @ @ @ @ @ @ 忘れて 衆議院 議場 に 入ろう と した ところ 、 衛視 に 制止 さ れて 、 あわてて 辺り に いた @ @ 別の 議員 （ 森 喜朗 ） から バッジ を 借りて 入場 した こと も ある 。",
+ "オス は 6 歳 に なら @ ない と 交尾 が 可能 と なら @ ず 、 発情 @ 期 は 年 @ に 1 回 しか ない 。 メス @ も 他の 家畜 と 比較 して 成熟 に 多く の 時間 が 必要であり 、 妊娠 期間 は 12 ヶ月 近く に 及ぶ 。",
+ "また 水溶 液 の ガラス 電極 に よる @ @ @ pH 測定 に おいて 、 信頼 性 の 高い 値 @ が 得 られる の は pH が およそ 1 \\ - \\ 12 の 範囲 内 、 イオン 強度 は 0 .1 以下 である 。 まず 濃厚な 酸 の 水溶 液 を ガラス 電極 に より @ @ @ 測定 する 場合 、 ガラス 電極 表面 の 膨潤 および 陰 イオン の 吸着 など が 影響 し 、 酸 誤差 が 生じる 。 次に 濃厚な 塩基 水溶 液 の 場合 は ガラス 電極 表面 へ の 陽 @ イオン の 吸着 など の 影響 に より @ @ @ アルカリ 誤差 を 生じ 、 これ は 陽 @ イオン の イオン 半径 が 小さい ほど 大きい 傾向 が ある 。",
+ "ペルム 紀 の 初期 に は 、 ゴンドワナ 大陸 が 南極 地域 に あり 、 大 @ 規模 な 氷床 が 発達 して いた ため 、 気候 は 寒冷だった 。 しかし ゴンドワナ 大陸 が 北上 して 南極 地域 を 脱した こと から 、 氷床 は 融解 し はじめ 、 気温 は 上昇 に 転じた 。 ペルム 紀 の 末期 に は 激しい 気温 上昇 が 起こり 、 地球 の 平均 気温 は 23 ℃ に も 達した 。 これ は 、 6億 年 前 から 現在 まで で もっとも 高い 気温 である 。 こうした 気候 の 中 で 、 パンゲア の 内陸 部 に は 砂漠 化 が 進行 して いた 。",
+ "アブ ・ サヤフ ・ グループ \\ Abu \\ a y y a f \\ r o u p ) \\ は 、 フィリピン の ミンダナオ 島 @ 、 スールー 諸島 、 ボルネオ 島 @ 、 および 、 インドネシア 、 マレーシア 、 タイ 、 ミャンマー など の 東南 アジア 地域 に イスラム 教 で 統治 する 国家 の 設立 を 目ざして 、 1990 年 に フィリピン 政府 に 対して 武装 闘争 を 開始 した 。 アブ ・ サヤフ ・ グループ は 、 フィリピン 政府 軍 および 一般 市民 に 対して 爆弾 攻撃 、 暗殺 、 誘拐 ・ 監禁 、 身代金 要求 を 繰り返し 、 2000 年 以後 は 活動 地域 を マレーシア 、 インドネシア へ も 拡大 し 、 2013 年 現在 、 武力 闘争 を 継続 中 である 。",
+ "大の ギャンブル 好きである 。 特に ボート レース が 大好きであり 、 選手 の 心理 状況 や 家族 構成 まで 調べる くらい に 熱中 して いる 。 日テレ 時代 に 『 ズームイン !! 朝 ! 』 を 担当 して いた 時 は 、 番組 が 終わる と ほぼ 毎日 の ように 平和島 競艇 場 @ に 直行 して いた と 言わ れて いる 。 「 競馬 は 遊び 、 競艇 は 勝負 」 が 口癖 で も ある と いう 。",
+ "同 年 @ 3 月 13 日 に は 、 内閣 は 同 国会 に 社会 保険 庁 の 廃止 と 日本 @ 年金 機構 の 設置 など を 定めた 「 日本 @ 年金 機構 法案 」 を 提出 し 、 同 法案 は 同 年 @ 6 月 30 日 に 成立 し 、 同 年 @ 7 月 6 日 に 公布 さ れた 。 同 法案 に おいて 「 日本 @ 年金 機構 」 は 、 役職 員 の 身分 を 非 公務 員 と する 特殊 法人 と さ れた 。",
+ "世界 的に 普及 する こと で 、 地域 独特の 文化 を も 生み 出して も いる 。 一 つ は 長く フランス や ベルギー など の 植民 地 と なり @ また 戦争 を 経験 して いる 、 コンゴ民主共和国 や コンゴ共和国 など に おける サプール と 呼ば れる 人 @ たち である 。 多く は 豊かで は ない 労働 者 で 日常 は 作業 着 など で 仕事 を して いる が 、 水道 が 普及 して い ない 環境 でも 体 @ や 服 の 清潔 を 保ち 、 収入 の 多く を 高価な 背広 に 費やし 、 ハレ の 日 など に は 濃い 肌 や 髪 や 瞳 の 色 @ と 互いに 引き立て 合う 鮮やかな 色調 の 着 こなし で 現れ 、 平和 と 自由 を 尊重 して 人生 を 楽しみ 、 尊敬 さ れる 人 @ たち である 。",
+ "アルファ 粒子 （ アルファ りゅう @ し 、 α 粒子 ） は 、 高い 運動 エネルギー を 持つ ヘリウム 4 の 原子核 である 。 陽子 2 個 と 中性子 2 個 から なる @ 。 放射 線 の 一種 の アルファ 線 （ アルファ せん @ @ @ @ @ @ 、 α 線 ） は 、 アルファ 粒子 の 流れ である 。",
+ "ペット と して 飼育 さ れる こと も ある が 、 たいてい の 場合 、 大人 に なる @ と 気 が 荒く なり 、 一般 的に は 飼育 が 困難である 。 しかも 、 知能 が 高い ため 、 いたずら が 巧妙 を 極め 、 逃げ 出す こと 、 室 内 を 破壊 する こと が 多い と いう 。 しかし 、 サル を ペット と する 歴史 その物 は 古く 、 古代 中国 @ で は テナガザル を 飼う の は 王侯 の 楽しみであった と 言う 。 なお 、 現在 でも 、 オランウータン や ゴールデン ライオン タマリン など が 絶滅 危惧 に 追いやら れて いる 主な 原因 が ペット 目的 の 捕獲 である 。",
+ "周波 数 は AM ラジオ 1008 kHz 、 FM ラジオ 93 .3 MHz （ 詳細 は # 送信 所 @ を 参照 ） 。 放送 の 起点 は 4 : 35 （ 土 ・ 日 @ は 4 : 30 ） で 、 日曜 深夜 （ = 月曜 未明 ） に は 、 原則として 0 : 35 \\ - \\ : 35 を メンテナンス タイム と して 放送 を 休止 する （ 2021 年 10 月 改編 現在 ） 。",
+ "現代 で は 「 積極 的 権利 」 や 「 福祉 的 権利 」 の 比重 が 著しく 増大 し 、 国際 人権 規約 でも まず 社会 権 的な A 規約 が あり 、 然る 後 に 自由 権 的な B 規約 が ある など 、 具体 的 人間 に 即して 人権 の 問題 を 考えよう と する 傾向 が み @ られ 、 「 自由 権 」 と 「 社会 権 」 あるいは 「 消極 的 権利 」 と 「 積極 的 権利 」 と いう 区別 は あまり 意識 さ れ なく なって いる 。 市民 的 及び 政治 的 権利 に 関する 国際 規約 （ 自由 権 規約 ） で は 法 の 下 の 平等や 生存 権 など も 保障 さ れて いる （ 学術 上 の 分類 と して は 、 法 の 下 の 平等 は 他の 個別 的 諸 権利 の 保障 の 基礎 的 条件 を なす 権利 であり 「 包括 的 権利 」 など と して 位置づけ られる 。 また 、 生存 権 は 「 積極 的 権利 」 あるいは 「 社会 権 」 など と して 分類 さ れる ） 。",
+ "このような 深刻な 財政 難 に も 関わら ず 、 第 3 代 藩主 綱勝 は 藩士 に 対して 倹約 を 命じ つつ 自ら @ は 大好きな 能楽 に のめり 込み 、 明暦 3 年 （ 1657 年 ） の 火事 で は 城下 @ の 東 600 戸 を 焼失 した に も 関わら ず 6000 人 の 家臣 を 動員 して 狩り を 行い 、 それ に 要した 費用 は 代官 や 商人 から 借りる こと で 補い 、 米沢 @ 藩 の 借金 生活 が この 時 から 開始 さ れた 。 綱憲 は 実父 吉良 @ 義央 夫妻 の 浪費 に よる @ @ @ 負債 2780 両 を 立て替えた 上 に 、 藩主 の 実父 である と して 毎年 6000 両 の 援助 金 @ を 送り 、 元禄 11 年 （ 1698 年 ） の 鍛冶 橋 @ に おける 吉良 屋敷 類焼 で は 呉服 橋 @ に 8000 両 の 費用 を かけて @ @ @ @ @ 新邸 を 造 築 した 上 、 米沢 @ から 大工 50 人 を 派遣 した 。 さらに 麻布 @ 藩邸 など の 新築 、 参 @ 勤 交代 など で の 奢侈 @ を 行い 、 藩 の 貯金 を 一般 会計 に 流用 する まで に 至る 。",
+ "ルメイ @ の 新 戦術 の 最初の 作戦 は 3 月 10 日 の 東京 大 空襲 と なった @ 。 325 機 の B - 29 は 3 月 9 日 の 午後 5 時 15 分 に マリアナ 諸島 の アメリカ 軍 基地 を 出撃 する と 、 3 月 10 日 の 午前 0 時 5 分 に 第 一 弾 を 投下 した 。 空襲 は ルメイ @ の 計画 通り 大 @ 成功 と なり @ 、 たった 一晩 で 83 , 000 人 の 住民 が 死亡 し 、 26万 戸 の 家屋 が 焼失 した が 、 他の 焼夷弾 爆撃 と 桁違いの 被害 を もたらせ た 最大の 原因 は 関東 大 @ 震災 の さい に も 発生 した 火災 旋風 が 大 @ 規模 に 発生 した ため であった 。 東京 大 空襲 から わずか 10 日間 の 間 に 、 ルメイ @ は 名古屋 、 大阪 @ 、 神戸 @ @ など の 大 @ 都市 に 延べ 1 , 595 機 の B - 29 を 出撃 さ せた が 、 この 機数 は それ まで マリアナ から 日本 @ 本土 を 爆撃 した 延べ 機数 の 3 倍 の 数 であり 、 投下 した 9 , 365 トン と いう 爆弾 の 量 も 、 3 月 9 日 まで に 投下 した 爆弾 量 の 3 倍 と なった @ 。 日本 @ の 都市 が 焼夷弾 攻撃 に 極めて 脆い こと が 実証 さ れ 、 東京 大 空襲 を 境 に して 対 @ 日 戦略 爆撃 の 様相 は 一変 して しまった 。",
+ "軍艦 など 高度な 科学 技術 を 用いて 設計 、 製造 、 配備 、 操作 、 運用 、 整備 さ れる 武器 、 装備 品 @ や 機関 を 取り扱う ため 、 海軍 の 下 士官 兵 は それ ら 兵器 類 の 取り扱い に 習熟 して い なければ なら @ ない 。 准士官 の 兵 曹長 が 、 砲術 科 、 水雷 科 など 各 科 で の 実務 面 @ @ の リーダー である 掌 砲長 、 信号 長 、 電信 長 、 掌 整備 長 など に なって @ いた \\ が 、 下 士官 から の 叩き上げ で は 兵 曹長 より 上 に は 、 名誉 進級 か 戦死 に 伴った 昇進 の 場合 を 除いて 進級 でき なかった 。",
+ "アメリカ の 支配 を 受けて いた 経緯 から 、 日本 @ と 同じく 軍事 的 、 経済 的 、 政治 的に アメリカ と の 関係 が 深い 。 フィリピン は 植民 地 支配 から 独立 した が 、 アメリカ が 介入 した 朝鮮 戦争 、 ベトナム 戦争 に も 参戦 し 、 現在 行わ れて いる 対 @ テロ 戦争 に も 参戦 、 反対 世論 が 多かった イラク 戦争 （ 武装 勢力 に よる @ @ @ フィリピン 人 @ 拉致 事件 で フィリピン 軍 は イラク から 全面 撤退 した ） に 同調 し 、 東南 アジア 条約 機構 や 米 比 相互 防衛 条約 を 結んで いる 。",
+ "1896 年 の 民法 典 制定 前 の 「 家 」 は 、 あたかも 莫大な 権利 義務 を 有する 法人 の ような もの であった 。 戸主 個人 は 権利 義務 の 主体 で は なく 、 家 の 代表 者 と して 強大な 権利 を 行使 する かわり に 、 家 産 ・ 家業 ・ 祭祀 を 維持 する 重い 責務 を 負う 存在 に すぎ なかった 。 ところが 明治 維新 に よって @ @ @ 職業 選択 の 自由 が 確保 さ れる と 、 このような 生活 モデル は 崩壊 する 。 諸 外国 の 例 を 見て も 、 家父長 制 が 徐々に 崩壊 して 個人 主義 へ 至る こと が 歴史 の 必然 と 思わ れた が 、 かといって 未だ 慣習 と して 家族 制度 が 根付いて いる 以上 、 法律 を もって @ 強引に 家 制度 を 無くす こと も 憚ら れた 。 そこ で 、 近い 将来 の 改正 を 前提 と し 、 所有 権 と 平仄 を 整え 、 戸主 権 の 主体 を 家 で は なく 戸主 個人 と した うえ で 家 産 を 否定 し 、 戸主 の 権限 を 従前 より も 大幅に 縮小 する 過渡 的な 暫定 規定 を 置く こと と した のである 。",
+ "サバンナ 平原 \\ \\ 大陸 東南 アジア で は 、 乾いた 北東 モンスーン の 影響 で 、 冬季 に は 強い 乾季 が あり 、 雨季 に 茂り 乾季 に 落葉 する 雨緑 林 が 多い 。 ビルマ 平原 で は 、 南西 モンスーン の 影響 で 乾燥 地帯 に なる @ 。 古い 時代 から 平原 畑作 が 進み 、 周り の 山地 から の 流水 を 利用 した 灌漑 が 発達 して いる 。 東北 タイ @ の コラート 平原 、 カンボジア 平原 で は 、 雨季 と 乾季 の 降水 量 に 差 が ある が 、 雨緑 林 @ が 形成 さ れる 。 夏季 に は 長期 に 降水 が あり 、 天水 稲作 が 広がって いる 。",
+ "択捉 島 @ 以南 （ 北方 四 島 @ ） の 占領 は 、 8 月 28 日 に 樺太 制圧 が 終了 した 第 一 極東 軍 を 転用 した 。 南 千島 占領 部隊 は 8 月 26 日 に 大泊 を 出航 し 8 月 29 日 に 択捉 島 @ を 占領 、 9 月 1 日 に 国後 島 @ と 色丹 島 @ に 上陸 し 、 9 月 2 日 に 日本 @ が 正式に 降伏 する 間 も 軍 を 進めた @ が 、 両島 の 制圧 に は 9 月 4 日 まで 費やした 。 9 月 5 日 に 歯舞 群島 を 占領 して 一連の 計画 は 完了 した が 、 占守 島 @ 侵攻 で 時間 を 費やさ なかったら 北海道 本島 も 侵略 さ れて いた と 見る 者 も いる @ @ 。",
+ "各 弦 の 音 @ と ポジション の 関係 は 次の 通り である 。 0 は 開放 弦 である 。",
+ "学校 法人 立命館 \\ 学園 一貫 教育 推進 本部 に より @ @ @ 小 ・ 中 ・ 高 は 附属 校 に 位置づけ られて いる 。 また 、 立命館 高等 学校 は 「 1905 年 9 月 京都 @ @ 法政 大学 の 附属 校 と して 清和 普通 学校 を 設立 」 と 明記 して いる 。",
+ "日本 @ の 住友 商事 や 電源 開発 など の 建設 に より @ @ @ 火力 発電 所 @ が 稼働 して いる 。 また タイ 国家 原子 力 @ 技術 研究 所 @ ・ タイ 原子 力 @ 平和 利用 事務 局 に よって @ @ @ 原子 力 @ 発電 所 @ の 建設 が 研究 ・ 検討 さ れて いる 。 2010 年 11 月 22 日 に タイ @ 発電 公社 （ EGAT ） が 日本 @ 原子 力 @ 発電 と 原子 力 @ 発電 技術 協力 協定 を 締結 した 。",
+ "歌 @ 体 @ や 題材 に より @ @ @ 歌 @ を 分類 して いる 。 平安 時代 末期 の 書写 。 3834 首 が 現存 する 。 中山 家 、 大谷 家 を 経て 、 龍谷 大学 が 所蔵 して いる 。",
+ "一般 の 炭素 鋼 と 同様に 、 フェライト 系 、 マルテン サイト 系 が 低温 環境 に 置か れる と 靭性 @ が 低下 し 、 脆性 破壊 を 起こす ように なる 。 靭性 @ が 著しく 低下 する 温度 を 延性 - 脆性 遷移 温度 と いい 、 フェライト 系 \\ 430 \\ の 例 で は 、 室温 から 約 \\ − 70 \\ ° C \\ まで の 間 で 衝撃 強 さ が 急激に 低下 する 。 しかし 、 オーステナイト 系 は このような 低温 時 @ に も 高い 靭性 @ を 保つ 。 鋼種 に も よる @ @ @ が 、 オーステナイト 系 は \\ − 200 \\ ° C \\ 以下 の 極 低温 でも 使用 できる 。 オーステナイト ・ フェライト 系 は 、 低温 時 @ に 脆性 破壊 を 起こす が 、 フェライト 系 より は 延性 - 脆性 遷移 が 緩やかに 起きる 傾向 に ある 。",
+ "現代 ヘブライ @ 語 は 5 母音 で 、 ティベリア 式 発音 の は に 変化 し 、 または 語源 に よって @ @ @ または の いずれ か に 発音 さ れる 。 シュワー は （ 発音 さ れる 場合 に は ） と 同 音 @ であり 、 超 短 母音 は 通常 の 母音 と 同様に 発音 さ れる 。 二重 母音 は の 3 種類 が ある 。",
+ "また 、 科 の 下 に \\ を 立てる @ こと も ある 。 この 階級 に 対する 訳語 は 動物 学 と 植物 学 で 異なり 、 動物 学 で は 族 、 植物 学 で は 連 と 呼ば れる 。",
+ "たま @ @ に CiNii と J - STAGE の 両方 で 同じ 文献 が 重複 して PDF 化 さ れて いる こと が ある 。 こうした 場合 に 、 CiNii の ファイル は 画像 データ で 文字 検索 が でき ない が 、 J - STAGE の ファイル は テキスト 化 さ れて いて 文字 検索 できる と いった 違い が 生じる 場合 が ある 。",
+ "連盟 は 、 を 建設 する 労働 者 の 死亡 率 を 55 % から 4 % に 下げる こと に も 成功 した 。 また 、 奴隷 制 、 売春 、 女性 や 子供 の 人身 売買 など を 取り締まる ため の 記録 も 残さ れた 。 国際 連盟 の 圧力 に より @ @ @ 、 1923 年 に アフガニスタン 、 1924 年 に イラク 、 1926 年 に ネパール 、 1929 年 に と ペルシャ 、 1937 年 に バーレーン 、 1942 年 に エチオピア で 奴隷 制 が 廃止 さ れた 。",
+ "4 月 11 日 に 相馬 @ @ を 解任 した 。 望月 達也 が 監督 代行 し 、 同 月 @ 23 日 、 筑波 大 監督 の 風間 八宏 が 監督 に 就任 した 。 7 月 1 日 に 風間 監督 の 長男 である 風間 宏希 と 風間 宏矢 が 入団 し 、 J リーグ 史上 初めて 同時に 父 が 監督 、 息子 が 選手 と して 所属 した 。",
+ "1836 年 10 月 25 日 、 港湾 都市 の ウィル ミントン と 州都 ローリー を 繋ぐ ウィル ミントン ・ アンド ・ ローリー 鉄道 の 建設 が 始まった 。 1849 年 、 州 議会 の 法 に より @ @ @ この 鉄道 を 西 の グリーンズボロ 、 ハイ ポイント 、 シャーロット まで 延伸 する ノースカロライナ 鉄道 が 創設 さ れた 。 南北 戦争 の とき 、 この 鉄道 の ウィル ミントン 、 ローリー 区間 は 南 軍 の 戦争 遂行 の ため に 重要な もの と なった @ 。 ウィル ミントン で 物資 が 積ま れ 、 鉄道 で ローリー を 通り 、 アメリカ 連合 国 @ の 首都 バージニア 州 リッチモンド に 運ば れた 。",
+ "自然 回帰 指向 の ラスタファリズム に とって @ @ @ @ @ @ 、 大麻 は 神聖な 植物 である と さ れる 。 もともと は 呪術 的な 色 @ の 濃い アフリカ 土着 的な 宗教 主流 だった ころ から 、 大麻 は 薬草 と して 扱わ れて きた 。 ラスタ 出現 以降 は 、 大麻 の 吸引 は バビロン 社会 へ の 反抗 の 手段 と いう 意味 に も とれる @ @ @ @ @ @ @ @ @ @ @ 。 ラスタ 思想 に おいて 、 ガンジャ は 精神 を より 穏やかな もの に する 、 と さ れて いる 。",
+ "原子 力 @ エネルギー を 用いた 武器 に は 携帯 型 @ 核 弾頭 から MIRV まで 幅広く 存在 する 。 主に 冷戦 中 に 多く 作ら れた が 、 2 つ の 爆弾 を 除いて 実戦 で の 使用 は 無い 。",
+ "昭和 25 年 10 月 復員 局 調 製 「 対 @ 蘇 作戦 記録 」 に よる @ @ @ と 、 関東 軍 は ソ連 参戦 に 備えて あらかじめ 満州 国軍 の 反乱 防止 策 ・ 戦力 削減 を 行って いた 。 しかし それ でも 「 満州 国 @ 軍隊 は 其 の 大部 反乱 する に 至り たり 」 と なった @ 。",
+ "アメリカ の ウッドロウ ・ ウィルソン 大統領 は エドワード ・ M ・ ハウス 大佐 に 対し 、 「 十四 か 条 の 平和 原則 」 で 初めて 示した 自身 の 理想 主義 的な 考え と 、 フィリモア 委員 会 の 活動 を 反映 した アメリカ の 計画 を 起草 する よう 指示 した 。 ハウス の 作業 と ウィルソン 自身 の 初 稿 で 、 スパイ 活動 や 不正 行為 を 含む 「 非 倫理 的 」 な 国家 行動 を 排除 する こと が 提案 さ れた 。 不 従順な 国家 に 対する 強制 手段 と して は 、 例えば 、 「 その 国 @ の 国境 @ を 封鎖 して 、 世界 の どの 地域 と も 通商 や 交流 が でき ない ように し 、 必要な 武力 を 行使 する .. . 」 など の 厳しい 措置 が 含ま れた 。",
+ "解雇 を 行う 場合 、 理事 会 の 4分の3 の 賛成 で 決議 さ れる 。 養老 金 @ 、 勤続 加算 金 @ （ 一般 企業 の 退職 金 @ に 相当 ） は 理事 会 に おいて 支給 見送り の 付帯 決議 が なされ なかった 場合 、 本人 から の 請求 に よって @ @ @ 支払わ れる 。 特別 功労 金 @ （ 一般 企業 の 特別 退職 金 @ に 相当 。 横綱 ・ 大関 のみ ） は 支払わ れ ない 。",
+ "特に 裁判 例 で は 手続 の 適正 が 重視 さ れる 傾向 に あり 、 労働 者 の 行為 と 懲戒 と の 釣り合い （ 平等 取り扱い の 原則 ） 、 社会 通念 上 の 相当 性 、 事前 弁明 の 機会 の 付与 など を 要件 と して いる こと が 多い 。 さらに 、 刑事 犯罪 等 に 該当 し ない 場合 に は 、 事前 の 指導 や 注意 、 警告 、 段階 的 懲戒 も 必要 と さ れる こと が 多い 。",
+ "株式 会社 高知 @ 放送 （ こうち ほうそう @ 、 Kochi \\ Broadcasting \\ o ., \\ t d . ） は 、 高知 @ 県 を 放送 対象 地域 と した 中波 放送 （ AM 放送 ） 事業 と テレビジョン 放送 事業 を 兼営 して いる 特定 地上 基幹 放送 事業 者 である 。 略称 は 旧 社名 「 ラジオ 高知 @ 」 から RKC （ Radio \\ o c h i \\ Company ） 。 ホームページ 等 で は 、 RKC 高知 放送 と 記載 さ れて いる 。",
+ "1982 年 に 初号機 が ロール アウト した 後 に 、 スイス 航空 （ 現 ・ スイス \\ インターナショナル \\ エアラインズ 。 ルフトハンザ ・ ドイツ 航空 が 買収 ） へ 納入 さ れた 。 後 に シンガポール @ 航空 （ 「 BIGTOP 」 の 愛称 が 付いた が 全 機 売却 済み ） 、 UTA （ UTA 、 現 エールフランス ） 、 日本 @ 航空 、 南アフリカ 航空 、 キャセイパシフィック航空 、 ヴァリグ ・ ブラジル 航空 、 マレーシア 航空 、 サベナ ・ ベルギー 航空 （ 2001 年 に 倒産 ） 等 へ 納入 さ れた 。",
+ "止観 業 と は 智顗 が 著した 『 摩訶 止観 』 に 由来 する 。 『 摩訶 止観 』 は 仏道 @ 修行 の 基礎 的な 規範 を 記した もの で 、 実践 と 修行 の 立場 から 法華 経 を 解釈 した もの と さ れる 。 最澄 は 『 勧奨 天台宗 年 @ 分 学生 式 』 に 「 止観 業 は 四 種 @ 三昧 を 修習 せ しめ （ 後略 ） 」 と 記す ように 、 『 摩訶 止観 』 に 記さ れる 実践 行 @ である 四 種 @ 三昧 の 実践 を 重視 して いた 。 そして 実践 の 場 @ と して 最澄 は 四 種 @ 三昧 堂 の 建立 を 図った が 、 この 堂 は 『 弘仁 九 年 比叡 山寺 僧 院 之 記 』 に 一 乗 止観 院 に 続いて 記さ れて いる こと から 延暦 寺 伽藍 構想 に おいて も 重要 視 さ れて いた こと が 分かる 。",
+ "地上 基幹 放送 に おいて 、 地勢 的な 影響 で 親 局 送信 所 @ だけ で は 放送 区域 を カバー でき ない 時 に 、 親 局 と は 別の 場所 に 設け られる 補助 的な 地上 基幹 放送 局 である 。 日本 @ で は 、 サテライト 局 （ 空中 線 電力 0 .1 W 以下 の 小 規模 な 中継 局 は ミニサテライト 局 （ ミニサテ 局 ） と 呼ば れる こと が 多い ） と 、 英語 で は トランスポーザ と いう 。 中継 方法 と して は 、 演奏 所 @ （ スタジオ ） ・ 親 局 から の 専用 線 （ 主に 中波 放送 ・ 短波 放送 ） や 、 無線 （ STL ） で 送信 する 方法 、 親 局 の 電波 を 受信 し 周波 数 を 変換 して 送信 する 放送 波 @ 中継 （ 主に 超 短波 放送 （ FM 放送 ） ・ テレビジョン 放送 ） が ある 。 なお 、 1990 年 代 以降 に 開設 さ れた 、 いわゆる 平成 新 局 は 資金 が 乏しい こと から 、 アナログ テレビ 放送 で は 中継 局 が 少な めである こと が 多かった 。",
+ "これ は アラビア 語 等 に も 見 られる が 、 インド ・ ヨーロッパ 祖語 も そう だった と 考え られて おり 、 比較的 古い スラヴ 語 派 で は \\ l f \\ の 様 に 子音 のみ の 単語 が 存在 したり 、 母音 が 無い 時 に 母音 に 近い 性質 を 持つ 、 [ m ] ,\\ [ n ] ,\\ [ l ] ,\\ [ r ] \\ 等 が 母音 の 役目 を する 事 @ が ある 。 この 場合 子音 の 下 に \\ を 付けて @ 表す @ 。",
+ "は 開幕 から 40 試合 で 35 勝 5 敗 と いう 驚異 的な ペース で 勝ち星 を 重ねた 。 最終 的に 104 勝 58 敗 と いう 圧倒 的な 成績 を あげ @ @ 、 断 トツ （ 2 位 トロント ・ ブルージェイズ と は 15 ゲーム 差 ） で 地区 優勝 を 果たした 。",
+ "ベラルーシ の 主な 天然 資源 は 森林 で 、 国土 の 45 .3 % もの @ 面積 を 占めて いる 。 その他 に 泥炭 、 花崗岩 、 泥灰岩 、 チョーク が 採れる @ 。 少量の 石油 と 天然ガス も 産出 さ れる が 、 国 @ 内 需要 を 満たす 規模 で は なく 、 エネルギー 資源 の 大半 を ロシア から の 輸入 に 依存 して いる 。",
+ "日 系 人 @ は しばしば 複数 の 国籍 を 持って いる 。 1985 年 以降 、 日本 @ は 国籍 に 関して 主に 「 父母 両 系統 血統 主義 」 （ 親 の いずれ か が 日本 @ 国民 ならば 日本 @ 国籍 を 取得 できる ） である 。 一方 で 日本 @ 人 @ が 多く 移住 した 北米 ・ 南米 の 多く の 国 @ は 主に 「 出生 地 主義 （ 生地 主義 ） 」 （ 生まれた 国 @ の 国籍 を 取得 できる ） を 採って いる ため である 。 近年 の 改正 に より @ @ @ 、 出生 地 主義 国 @ も 血統 主義 的な 要素 を 、 血統 主義 国 @ も 出生 地 主義 的 要素 を 統合 する 傾向 が ある 。 例えば カナダ 人 @ 夫婦 の 子供 は 、 カナダ 国 @ 外 @ @ で 生まれて も カナダ 国籍 が 与え られる 。",
+ "こうした 状況 の 中 、 マルクス は 今 の 好 景気 が 続く 限り 、 革命 は 起こり 得 ない と 結論 する ように なり 、 共産 主義 者 同盟 の メンバー に 対し 、 即時 行動 は 諦める よう 訴えた 。 だが 共産 主義 者 同盟 の メンバー に は 即時 行動 を 求める 者 が 多かった 。 マルクス の 独裁 的な 組織 運営 へ の 反発 も あって 、 とりわけ ヴィリヒ が 反 マルクス 派 の 中心 人物 と なって @ いった 。 シャッパー も ヴィリヒ を 支持 し 、 共産 主義 者 同盟 内 に 大きな 亀裂 が 生じた 。",
+ "日中 時間 帯 @ の 運転 間隔 は 、 10 分 の 間 に 線 内 列車 と 東武 伊勢崎 線 直通 列車 が 交互に 運行 さ れて いる 。 東武 伊勢崎 線 直通 列車 は 1 時間 あたり 東武動物公園 駅 発着 列車 が 4 本 、 南 栗橋 駅 発着 列車 が 2 本 運行 さ れて いる 。",
+ ...]
+```
+
 ## Tokenizer
 
 We use [ku-nlp/deberta-v2-base-japanese](https://huggingface.co/ku-nlp/deberta-v2-base-japanese) for a tokenizer and a linguistic model for embedding.
@@ -82,8 +214,69 @@ Since Bumblebee currently doesn't support DeBERTa, we use `Bumblebee.Text.BartTo
   )
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+{:ok,
+ %Bumblebee.Text.BartTokenizer{
+   tokenizer: #Tokenizers.Tokenizer<[
+     vocab_size: 32000,
+     min_score: -21.820940017700195,
+     model_type: "bpe"
+   ]>,
+   special_tokens: %{
+     bos: "[CLS]",
+     cls: "[CLS]",
+     eos: "[SEP]",
+     mask: "[MASK]",
+     pad: "[PAD]",
+     sep: "[SEP]",
+     unk: "[UNK]"
+   }
+ }}
+```
+
 ```elixir
 inputs = Bumblebee.apply_tokenizer(tokenizer, preprocessed)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+
+02:05:57.193 [info] TfrtCpuClient created.
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+%{
+  "attention_mask" => #Nx.Tensor<
+    u32[100][294]
+    EXLA.Backend<host:0, 0.1559797322.46268436.85520>
+    [
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...],
+      ...
+    ]
+  >,
+  "input_ids" => #Nx.Tensor<
+    u32[100][294]
+    EXLA.Backend<host:0, 0.1559797322.46268436.85519>
+    [
+      [1, 2594, 1567, 270, 3, 5832, 266, 261, 546, 1802, 274, 285, 5473, 513, 5379, 1593, 972, 262, 7829, 265, 30387, 286, 2617, 263, 19765, 270, 3, 1033, 262, 11605, 267, 2225, 2040, 5234, 640, 330, 9568, 279, 268, 261, 16610, 262, 273, 12736, 314, 546, 1145, 274, ...],
+      ...
+    ]
+  >,
+  "token_type_ids" => #Nx.Tensor<
+    u32[100][294]
+    EXLA.Backend<host:0, 0.1559797322.46268436.85521>
+    [
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...],
+      ...
+    ]
+  >
+}
 ```
 
 ## Embedding
@@ -94,10 +287,397 @@ inputs = Bumblebee.apply_tokenizer(tokenizer, preprocessed)
     {:hf, "ku-nlp/deberta-v2-base-japanese"},
     module: Bumblebee.Text.Bart
   )
+
+IO.puts("suppress the long long output...")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+suppress the long long output...
+
+02:12:54.060 [debug] the following parameters were missing:
+
+  * decoder.blocks.2.cross_attention_norm.gamma
+  * decoder.blocks.2.cross_attention_norm.beta
+  * encoder.blocks.8.self_attention_norm.gamma
+  * encoder.blocks.8.self_attention_norm.beta
+  * encoder.blocks.11.ffn.intermediate.kernel
+  * encoder.blocks.11.ffn.intermediate.bias
+  * decoder.blocks.2.self_attention_norm.gamma
+  * decoder.blocks.2.self_attention_norm.beta
+  * encoder.blocks.9.ffn.intermediate.kernel
+  * encoder.blocks.9.ffn.intermediate.bias
+  * encoder.blocks.6.self_attention_norm.gamma
+  * encoder.blocks.6.self_attention_norm.beta
+  * decoder.blocks.1.cross_attention.query.kernel
+  * decoder.blocks.1.cross_attention.query.bias
+  * decoder.blocks.9.cross_attention.key.kernel
+  * decoder.blocks.9.cross_attention.key.bias
+  * decoder.blocks.1.ffn.intermediate.kernel
+  * decoder.blocks.1.ffn.intermediate.bias
+  * decoder.blocks.6.cross_attention.key.kernel
+  * decoder.blocks.6.cross_attention.key.bias
+  * encoder.blocks.2.self_attention.value.kernel
+  * encoder.blocks.2.self_attention.value.bias
+  * encoder.blocks.7.self_attention.key.kernel
+  * encoder.blocks.7.self_attention.key.bias
+  * decoder.blocks.10.cross_attention.output.kernel
+  * decoder.blocks.10.cross_attention.output.bias
+  * decoder.blocks.2.self_attention.value.kernel
+  * decoder.blocks.2.self_attention.value.bias
+  * encoder.blocks.9.self_attention.value.kernel
+  * encoder.blocks.9.self_attention.value.bias
+  * decoder.blocks.11.self_attention.output.kernel
+  * decoder.blocks.11.self_attention.output.bias
+  * decoder.blocks.9.output_norm.gamma
+  * decoder.blocks.9.output_norm.beta
+  * decoder.blocks.1.self_attention_norm.gamma
+  * decoder.blocks.1.self_attention_norm.beta
+  * decoder.blocks.11.output_norm.gamma
+  * decoder.blocks.11.output_norm.beta
+  * decoder.blocks.10.cross_attention.query.kernel
+  * decoder.blocks.10.cross_attention.query.bias
+  * encoder.blocks.3.self_attention.value.kernel
+  * encoder.blocks.3.self_attention.value.bias
+  * encoder.blocks.2.self_attention.key.kernel
+  * encoder.blocks.2.self_attention.key.bias
+  * encoder.blocks.9.self_attention.query.kernel
+  * encoder.blocks.9.self_attention.query.bias
+  * decoder.blocks.1.self_attention.output.kernel
+  * decoder.blocks.1.self_attention.output.bias
+  * encoder.blocks.10.self_attention.key.kernel
+  * encoder.blocks.10.self_attention.key.bias
+  * encoder_embedder.norm.gamma
+  * encoder_embedder.norm.beta
+  * encoder.blocks.4.output_norm.gamma
+  * encoder.blocks.4.output_norm.beta
+  * encoder.blocks.5.self_attention.query.kernel
+  * encoder.blocks.5.self_attention.query.bias
+  * encoder.blocks.5.self_attention_norm.gamma
+  * encoder.blocks.5.self_attention_norm.beta
+  * decoder.blocks.7.output_norm.gamma
+  * decoder.blocks.7.output_norm.beta
+  * encoder.blocks.1.self_attention.output.kernel
+  * encoder.blocks.1.self_attention.output.bias
+  * decoder.blocks.3.cross_attention.value.kernel
+  * decoder.blocks.3.cross_attention.value.bias
+  * decoder.blocks.1.self_attention.value.kernel
+  * decoder.blocks.1.self_attention.value.bias
+  * decoder.blocks.3.ffn.output.kernel
+  * decoder.blocks.3.ffn.output.bias
+  * decoder.blocks.0.ffn.intermediate.kernel
+  * decoder.blocks.0.ffn.intermediate.bias
+  * encoder.blocks.6.self_attention.value.kernel
+  * encoder.blocks.6.self_attention.value.bias
+  * decoder_embedder.position_embedding.kernel
+  * encoder.blocks.10.self_attention.output.kernel
+  * encoder.blocks.10.self_attention.output.bias
+  * decoder.blocks.8.self_attention.key.kernel
+  * decoder.blocks.8.self_attention.key.bias
+  * decoder.blocks.6.output_norm.gamma
+  * decoder.blocks.6.output_norm.beta
+  * decoder.blocks.9.self_attention.query.kernel
+  * decoder.blocks.9.self_attention.query.bias
+  * encoder.blocks.3.ffn.output.kernel
+  * encoder.blocks.3.ffn.output.bias
+  * encoder.blocks.9.output_norm.gamma
+  * encoder.blocks.9.output_norm.beta
+  * decoder.blocks.11.self_attention_norm.gamma
+  * decoder.blocks.11.self_attention_norm.beta
+  * decoder.blocks.1.cross_attention_norm.gamma
+  * decoder.blocks.1.cross_attention_norm.beta
+  * encoder.blocks.2.ffn.output.kernel
+  * encoder.blocks.2.ffn.output.bias
+  * encoder.blocks.4.ffn.output.kernel
+  * encoder.blocks.4.ffn.output.bias
+  * decoder.blocks.3.self_attention.key.kernel
+  * decoder.blocks.3.self_attention.key.bias
+  * decoder.blocks.0.cross_attention.value.kernel
+  * decoder.blocks.0.cross_attention.value.bias
+  * encoder.blocks.4.self_attention.query.kernel
+  * encoder.blocks.4.self_attention.query.bias
+  * decoder.blocks.10.self_attention.output.kernel
+  * decoder.blocks.10.self_attention.output.bias
+  * encoder.blocks.3.ffn.intermediate.kernel
+  * encoder.blocks.3.ffn.intermediate.bias
+  * encoder_embedder.token_embedding.kernel
+  * decoder.blocks.1.cross_attention.key.kernel
+  * decoder.blocks.1.cross_attention.key.bias
+  * decoder.blocks.7.cross_attention.value.kernel
+  * decoder.blocks.7.cross_attention.value.bias
+  * decoder.blocks.4.self_attention.output.kernel
+  * decoder.blocks.4.self_attention.output.bias
+  * encoder.blocks.8.ffn.output.kernel
+  * encoder.blocks.8.ffn.output.bias
+  * encoder.blocks.8.self_attention.query.kernel
+  * encoder.blocks.8.self_attention.query.bias
+  * decoder.blocks.2.self_attention.key.kernel
+  * decoder.blocks.2.self_attention.key.bias
+  * decoder.blocks.11.ffn.output.kernel
+  * decoder.blocks.11.ffn.output.bias
+  * decoder.blocks.9.cross_attention.output.kernel
+  * decoder.blocks.9.cross_attention.output.bias
+  * encoder.blocks.6.output_norm.gamma
+  * encoder.blocks.6.output_norm.beta
+  * decoder.blocks.3.cross_attention_norm.gamma
+  * decoder.blocks.3.cross_attention_norm.beta
+  * decoder_embedder.token_embedding.kernel
+  * decoder.blocks.9.self_attention.value.kernel
+  * decoder.blocks.9.self_attention.value.bias
+  * decoder.blocks.0.self_attention.query.kernel
+  * decoder.blocks.0.self_attention.query.bias
+  * encoder.blocks.11.self_attention.value.kernel
+  * encoder.blocks.11.self_attention.value.bias
+  * decoder.blocks.11.cross_attention.value.kernel
+  * decoder.blocks.11.cross_attention.value.bias
+  * decoder.blocks.6.cross_attention_norm.gamma
+  * decoder.blocks.6.cross_attention_norm.beta
+  * encoder.blocks.3.self_attention.query.kernel
+  * encoder.blocks.3.self_attention.query.bias
+  * decoder.blocks.10.self_attention.key.kernel
+  * decoder.blocks.10.self_attention.key.bias
+  * encoder_embedder.position_embedding.kernel
+  * decoder.blocks.10.cross_attention.value.kernel
+  * decoder.blocks.10.cross_attention.value.bias
+  * decoder.blocks.6.ffn.intermediate.kernel
+  * decoder.blocks.6.ffn.intermediate.bias
+  * decoder.blocks.4.cross_attention.query.kernel
+  * decoder.blocks.4.cross_attention.query.bias
+  * decoder.blocks.5.self_attention.output.kernel
+  * decoder.blocks.5.self_attention.output.bias
+  * decoder.blocks.1.cross_attention.output.kernel
+  * decoder.blocks.1.cross_attention.output.bias
+  * encoder.blocks.3.self_attention.output.kernel
+  * encoder.blocks.3.self_attention.output.bias
+  * decoder.blocks.10.self_attention.query.kernel
+  * decoder.blocks.10.self_attention.query.bias
+  * encoder.blocks.11.self_attention.key.kernel
+  * encoder.blocks.11.self_attention.key.bias
+  * encoder.blocks.3.output_norm.gamma
+  * encoder.blocks.3.output_norm.beta
+  * decoder.blocks.11.self_attention.query.kernel
+  * decoder.blocks.11.self_attention.query.bias
+  * decoder.blocks.8.self_attention.query.kernel
+  * decoder.blocks.8.self_attention.query.bias
+  * encoder.blocks.6.ffn.intermediate.kernel
+  * encoder.blocks.6.ffn.intermediate.bias
+  * encoder.blocks.6.self_attention.key.kernel
+  * encoder.blocks.6.self_attention.key.bias
+  * decoder.blocks.7.self_attention.output.kernel
+  * decoder.blocks.7.self_attention.output.bias
+  * decoder.blocks.9.self_attention.key.kernel
+  * decoder.blocks.9.self_attention.key.bias
+  * decoder.blocks.11.self_attention.key.kernel
+  * decoder.blocks.11.self_attention.key.bias
+  * decoder.blocks.5.cross_attention.output.kernel
+  * decoder.blocks.5.cross_attention.output.bias
+  * decoder.blocks.7.cross_attention.key.kernel
+  * decoder.b (truncated)
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+
+02:12:54.060 [debug] the following PyTorch parameters were unused:
+
+  * cls.predictions.bias
+  * cls.predictions.decoder.bias
+  * cls.predictions.decoder.weight
+  * cls.predictions.transform.LayerNorm.bias
+  * cls.predictions.transform.LayerNorm.weight
+  * cls.predictions.transform.dense.bias
+  * cls.predictions.transform.dense.weight
+  * deberta.embeddings.LayerNorm.bias
+  * deberta.embeddings.LayerNorm.weight
+  * deberta.embeddings.position_ids
+  * deberta.embeddings.word_embeddings.weight
+  * deberta.encoder.LayerNorm.bias
+  * deberta.encoder.LayerNorm.weight
+  * deberta.encoder.conv.LayerNorm.bias
+  * deberta.encoder.conv.LayerNorm.weight
+  * deberta.encoder.conv.conv.bias
+  * deberta.encoder.conv.conv.weight
+  * deberta.encoder.layer.0.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.0.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.0.attention.output.dense.bias
+  * deberta.encoder.layer.0.attention.output.dense.weight
+  * deberta.encoder.layer.0.attention.self.key_proj.bias
+  * deberta.encoder.layer.0.attention.self.key_proj.weight
+  * deberta.encoder.layer.0.attention.self.query_proj.bias
+  * deberta.encoder.layer.0.attention.self.query_proj.weight
+  * deberta.encoder.layer.0.attention.self.value_proj.bias
+  * deberta.encoder.layer.0.attention.self.value_proj.weight
+  * deberta.encoder.layer.0.intermediate.dense.bias
+  * deberta.encoder.layer.0.intermediate.dense.weight
+  * deberta.encoder.layer.0.output.LayerNorm.bias
+  * deberta.encoder.layer.0.output.LayerNorm.weight
+  * deberta.encoder.layer.0.output.dense.bias
+  * deberta.encoder.layer.0.output.dense.weight
+  * deberta.encoder.layer.1.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.1.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.1.attention.output.dense.bias
+  * deberta.encoder.layer.1.attention.output.dense.weight
+  * deberta.encoder.layer.1.attention.self.key_proj.bias
+  * deberta.encoder.layer.1.attention.self.key_proj.weight
+  * deberta.encoder.layer.1.attention.self.query_proj.bias
+  * deberta.encoder.layer.1.attention.self.query_proj.weight
+  * deberta.encoder.layer.1.attention.self.value_proj.bias
+  * deberta.encoder.layer.1.attention.self.value_proj.weight
+  * deberta.encoder.layer.1.intermediate.dense.bias
+  * deberta.encoder.layer.1.intermediate.dense.weight
+  * deberta.encoder.layer.1.output.LayerNorm.bias
+  * deberta.encoder.layer.1.output.LayerNorm.weight
+  * deberta.encoder.layer.1.output.dense.bias
+  * deberta.encoder.layer.1.output.dense.weight
+  * deberta.encoder.layer.10.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.10.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.10.attention.output.dense.bias
+  * deberta.encoder.layer.10.attention.output.dense.weight
+  * deberta.encoder.layer.10.attention.self.key_proj.bias
+  * deberta.encoder.layer.10.attention.self.key_proj.weight
+  * deberta.encoder.layer.10.attention.self.query_proj.bias
+  * deberta.encoder.layer.10.attention.self.query_proj.weight
+  * deberta.encoder.layer.10.attention.self.value_proj.bias
+  * deberta.encoder.layer.10.attention.self.value_proj.weight
+  * deberta.encoder.layer.10.intermediate.dense.bias
+  * deberta.encoder.layer.10.intermediate.dense.weight
+  * deberta.encoder.layer.10.output.LayerNorm.bias
+  * deberta.encoder.layer.10.output.LayerNorm.weight
+  * deberta.encoder.layer.10.output.dense.bias
+  * deberta.encoder.layer.10.output.dense.weight
+  * deberta.encoder.layer.11.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.11.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.11.attention.output.dense.bias
+  * deberta.encoder.layer.11.attention.output.dense.weight
+  * deberta.encoder.layer.11.attention.self.key_proj.bias
+  * deberta.encoder.layer.11.attention.self.key_proj.weight
+  * deberta.encoder.layer.11.attention.self.query_proj.bias
+  * deberta.encoder.layer.11.attention.self.query_proj.weight
+  * deberta.encoder.layer.11.attention.self.value_proj.bias
+  * deberta.encoder.layer.11.attention.self.value_proj.weight
+  * deberta.encoder.layer.11.intermediate.dense.bias
+  * deberta.encoder.layer.11.intermediate.dense.weight
+  * deberta.encoder.layer.11.output.LayerNorm.bias
+  * deberta.encoder.layer.11.output.LayerNorm.weight
+  * deberta.encoder.layer.11.output.dense.bias
+  * deberta.encoder.layer.11.output.dense.weight
+  * deberta.encoder.layer.2.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.2.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.2.attention.output.dense.bias
+  * deberta.encoder.layer.2.attention.output.dense.weight
+  * deberta.encoder.layer.2.attention.self.key_proj.bias
+  * deberta.encoder.layer.2.attention.self.key_proj.weight
+  * deberta.encoder.layer.2.attention.self.query_proj.bias
+  * deberta.encoder.layer.2.attention.self.query_proj.weight
+  * deberta.encoder.layer.2.attention.self.value_proj.bias
+  * deberta.encoder.layer.2.attention.self.value_proj.weight
+  * deberta.encoder.layer.2.intermediate.dense.bias
+  * deberta.encoder.layer.2.intermediate.dense.weight
+  * deberta.encoder.layer.2.output.LayerNorm.bias
+  * deberta.encoder.layer.2.output.LayerNorm.weight
+  * deberta.encoder.layer.2.output.dense.bias
+  * deberta.encoder.layer.2.output.dense.weight
+  * deberta.encoder.layer.3.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.3.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.3.attention.output.dense.bias
+  * deberta.encoder.layer.3.attention.output.dense.weight
+  * deberta.encoder.layer.3.attention.self.key_proj.bias
+  * deberta.encoder.layer.3.attention.self.key_proj.weight
+  * deberta.encoder.layer.3.attention.self.query_proj.bias
+  * deberta.encoder.layer.3.attention.self.query_proj.weight
+  * deberta.encoder.layer.3.attention.self.value_proj.bias
+  * deberta.encoder.layer.3.attention.self.value_proj.weight
+  * deberta.encoder.layer.3.intermediate.dense.bias
+  * deberta.encoder.layer.3.intermediate.dense.weight
+  * deberta.encoder.layer.3.output.LayerNorm.bias
+  * deberta.encoder.layer.3.output.LayerNorm.weight
+  * deberta.encoder.layer.3.output.dense.bias
+  * deberta.encoder.layer.3.output.dense.weight
+  * deberta.encoder.layer.4.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.4.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.4.attention.output.dense.bias
+  * deberta.encoder.layer.4.attention.output.dense.weight
+  * deberta.encoder.layer.4.attention.self.key_proj.bias
+  * deberta.encoder.layer.4.attention.self.key_proj.weight
+  * deberta.encoder.layer.4.attention.self.query_proj.bias
+  * deberta.encoder.layer.4.attention.self.query_proj.weight
+  * deberta.encoder.layer.4.attention.self.value_proj.bias
+  * deberta.encoder.layer.4.attention.self.value_proj.weight
+  * deberta.encoder.layer.4.intermediate.dense.bias
+  * deberta.encoder.layer.4.intermediate.dense.weight
+  * deberta.encoder.layer.4.output.LayerNorm.bias
+  * deberta.encoder.layer.4.output.LayerNorm.weight
+  * deberta.encoder.layer.4.output.dense.bias
+  * deberta.encoder.layer.4.output.dense.weight
+  * deberta.encoder.layer.5.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.5.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.5.attention.output.dense.bias
+  * deberta.encoder.layer.5.attention.output.dense.weight
+  * deberta.encoder.layer.5.attention.self.key_proj.bias
+  * deberta.encoder.layer.5.attention.self.key_proj.weight
+  * deberta.encoder.layer.5.attention.self.query_proj.bias
+  * deberta.encoder.layer.5.attention.self.query_proj.weight
+  * deberta.encoder.layer.5.attention.self.value_proj.bias
+  * deberta.encoder.layer.5.attention.self.value_proj.weight
+  * deberta.encoder.layer.5.intermediate.dense.bias
+  * deberta.encoder.layer.5.intermediate.dense.weight
+  * deberta.encoder.layer.5.output.LayerNorm.bias
+  * deberta.encoder.layer.5.output.LayerNorm.weight
+  * deberta.encoder.layer.5.output.dense.bias
+  * deberta.encoder.layer.5.output.dense.weight
+  * deberta.encoder.layer.6.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.6.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.6.attention.output.dense.bias
+  * deberta.encoder.layer.6.atte (truncated)
+
 ```
 
 ```elixir
 outputs = Axon.predict(model, params, inputs)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+%{
+  cache: #Axon.None<...>,
+  cross_attentions: #Axon.None<...>,
+  decoder_attentions: #Axon.None<...>,
+  decoder_hidden_states: #Axon.None<...>,
+  encoder_attentions: #Axon.None<...>,
+  encoder_hidden_state: #Nx.Tensor<
+    f32[100][294][1024]
+    EXLA.Backend<host:0, 0.1559797322.46268435.161738>
+    [
+      [
+        [1.6530718803405762, 0.038470830768346786, -0.278176486492157, 0.2577956020832062, -0.44598057866096497, -7.092367172241211, 0.43593358993530273, -0.10567225515842438, -1.6616860628128052, -0.8485845327377319, 0.6676518321037292, -0.7067639231681824, 0.5967513918876648, 0.3433527648448944, -0.288482129573822, -0.06049492955207825, 0.20625117421150208, 1.439042329788208, 0.1289030909538269, 0.2368772327899933, -1.3812391757965088, -0.3960949182510376, -0.33702632784843445, 0.6273619532585144, -1.4422557353973389, -0.23786619305610657, 0.24854302406311035, -0.8620805740356445, -0.4678114950656891, -0.31692615151405334, 0.05848116800189018, 0.013655474409461021, -0.61830073595047, 0.6781216263771057, 0.4161235988140106, -1.0460968017578125, -0.25292572379112244, 0.07119514793157578, 1.3997395038604736, -0.39929360151290894, -0.05767913535237312, -2.8089969158172607, -0.48958611488342285, 0.23408611118793488, ...],
+        ...
+      ],
+      ...
+    ]
+  >,
+  encoder_hidden_states: #Axon.None<...>,
+  hidden_state: #Nx.Tensor<
+    f32[100][294][1024]
+    EXLA.Backend<host:0, 0.1559797322.46268435.163240>
+    [
+      [
+        [0.22439929842948914, 0.36398714780807495, 1.1733107566833496, -0.029899774119257927, -0.5769947171211243, 0.3779900372028351, -0.9644249677658081, 0.18918244540691376, -1.3194679021835327, -0.07996366918087006, -0.05027763918042183, -0.5429835319519043, 0.3033429682254791, 0.07249801605939865, 0.10973316431045532, -0.10793289542198181, 0.12608355283737183, -0.0638517513871193, 0.17621362209320068, 0.010183175094425678, 0.6611552238464355, 0.25352296233177185, -0.5354911088943481, -0.34421008825302124, -0.4924362897872925, 0.006151360459625721, 0.15310226380825043, 0.8394050598144531, 0.1001431792974472, -0.19147418439388275, -0.03567509725689888, -0.03780651092529297, -0.6264786720275879, 0.9245508313179016, -0.0188763290643692, -0.6557934880256653, -0.06148374453186989, 1.2016575336456299, -0.005304001737385988, -0.3937807083129883, -1.126508355140686, -0.42572447657585144, ...],
+        ...
+      ],
+      ...
+    ]
+  >
+}
 ```
 
 In the code below, we calcurate means for columns of hidden states, which represent sentence vectors.
@@ -106,12 +686,28 @@ In the code below, we calcurate means for columns of hidden states, which repres
 outputs.hidden_state[0] |> Nx.mean(axes: [0])
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+#Nx.Tensor<
+  f32[1024]
+  EXLA.Backend<host:0, 0.1559797322.46268436.173031>
+  [0.18289196491241455, 0.26379767060279846, 0.4949089586734772, 0.2144329696893692, -0.40866464376449585, 0.3036096394062042, 0.01510747242718935, 0.24541501700878143, -0.5269785523414612, -0.007245234213769436, -0.13077713549137115, -0.2992725074291229, -0.09494106471538544, 0.258969247341156, 0.2009151726961136, -0.04329000785946846, 0.06771712750196457, 0.07625805586576462, 0.042080119252204895, 0.011510737240314484, 0.21570083498954773, 0.7044250965118408, -0.3472716510295868, -0.8712050318717957, -0.13240750133991241, 0.08586455136537552, 0.2326364517211914, 0.01718086749315262, 0.390712171792984, -0.17455998063087463, 0.024066155776381493, -0.02372218668460846, -0.7647120952606201, 0.7339459657669067, 0.035405516624450684, -0.42505791783332825, -0.12528152763843536, 2.4444456100463867, -0.0468212254345417, -0.3249972462654114, -2.0300543308258057, -0.5266018509864807, 0.0567067451775074, -0.16134759783744812, -0.004005898721516132, -0.40412482619285583, 1.0575439929962158, -0.6656539440155029, 0.15869128704071045, -0.4070448577404022, ...]
+>
+```
+
 ## Vector Store
 
 We use [ex_faiss](https://github.com/elixir-nx/ex_faiss) which is a wrapper library of Faiss similarity search engine.
 
 ```elixir
 index = ExFaiss.Index.new(1024, "Flat")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+%ExFaiss.Index{dim: 1024, ref: #Reference<0.1559797322.47316993.132001>, device: :host}
 ```
 
 ```elixir
@@ -124,11 +720,22 @@ index =
   end)
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+%ExFaiss.Index{dim: 1024, ref: #Reference<0.1559797322.47316993.132001>, device: :host}
+```
+
 In the code below, we send a query to the vector search engine. The query is converted into an embedding using the same method above.
 
 ```elixir
-# query = "今日 は いい 天気 。"
-query = "映画 『 戦場 の メリークリスマス 』 で 映画 に 俳優 と して 出演 し た 音楽家 は 誰 ？"
+query =
+  "1277年にイヴァイロが反乱を起こして皇帝に即位した国は？"
+  |> Jumanpp.parse!()
+  |> Enum.map(fn token ->
+    token |> Map.get(:surface)
+  end)
+  |> Enum.join(" ")
 
 query_input =
   tokenizer
@@ -136,6 +743,16 @@ query_input =
 
 query_output = Axon.predict(model, params, query_input)
 query_vector = query_output.hidden_state[0] |> Nx.mean(axes: [0])
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+#Nx.Tensor<
+  f32[1024]
+  EXLA.Backend<host:0, 0.1559797322.46268436.183115>
+  [0.17671750485897064, 0.2630062699317932, 1.390708088874817, 0.13780242204666138, -0.38807281851768494, 0.34534576535224915, -0.6625447869300842, 0.0707085058093071, -0.36778491735458374, 8.071321062743664e-4, -0.1338651180267334, -0.6447731852531433, -0.04045957699418068, 0.1254098117351532, 0.1540955752134323, -0.16826871037483215, 0.1524641215801239, 0.0030189664103090763, 0.17010675370693207, 0.013569287024438381, 0.37724432349205017, 0.5273613333702087, -0.6527289152145386, -0.7564651966094971, -0.058599215000867844, 0.020003285259008408, 0.18957971036434174, 0.38679394125938416, -0.32666581869125366, -0.42617738246917725, -0.01721770502626896, -0.03455478325486183, -0.6662505865097046, 0.7829185724258423, 0.01683904230594635, -0.5850775837898254, -0.11965185403823853, 2.337541103363037, -0.10421237349510193, -0.12483314424753189, -1.6517140865325928, -0.6289017200469971, -0.03584205359220505, -0.22328174114227295, -0.001262126606889069, -0.6521614193916321, 0.9247648119926453, -0.5677025318145752, 0.1727900505065918, -0.26683470606803894, ...]
+>
 ```
 
 ```elixir
@@ -147,9 +764,25 @@ doc_ids =
   |> List.flatten()
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+[0, 17, 59, 84, 16]
+```
+
 ```elixir
 doc_ids
 |> Enum.map(fn i ->
   docs |> Enum.at(i)
 end)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+["ベトナム [SEP] 広南阮氏は、1611年からパーンドゥランガの領土を侵食し始める。鄭阮戦争の難民がメコンデルタへ流出すると、カンボジアの（在位：1618年-1628年）は、プレイノコール（現ホーチミン市）に難民を受け入れ及び徴税のために税関事務所を建設することを許可した。これによってメコンデルタのベトナム化が進行したことで、広南阮氏の南下を呼び込む結果になる。1681年、ダナン沖に明朝遺臣を名乗る楊彦迪（ズオン・ガン・ディック）、陳上川（チャン・トゥオン・スィエン）らの率いる50隻余の艦隊が出現して広南国への亡命を申し出ると、広南国はメコンデルタへの入植に彼らを活用することとなった",
+ "太平洋戦争 [SEP] ルメイの新戦術の最初の作戦は3月10日の東京大空襲となった。325機のB-29は3月9日の午後5時15分にマリアナ諸島のアメリカ軍基地を出撃すると、3月10日の午前0時5分に第一弾を投下した。空襲はルメイの計画通り大成功となり、たった一晩で83,000人の住民が死亡し、26万戸の家屋が焼失したが、他の焼夷弾爆撃と桁違いの被害をもたらせた最大の原因は関東大震災のさいにも発生した火災旋風が大規模に発生したためであった。東京大空襲からわずか10日間の間に、ルメイは名古屋、大阪、神戸などの大都市に延べ1,595機のB-29を出撃させたが、この機数はそれまでマリアナから日本本土を爆撃した延べ機数の3倍の数であり、投下した9,365トンという爆弾の量も、3月9日までに投下した爆弾量の3倍となった。日本の都市が焼夷弾攻撃に極めて脆いことが実証され、東京大空襲を境にして対日戦略爆撃の様相は一変してしまった。",
+ "ホテル [SEP] アメリカでは最近、「ブティックホテル」に分類されるホテルもある。デザイン・コンセプトを明らかにして工夫を凝らし設計させた個性的でモダンな設計・内装・外観を有するホテル である。（日本でいう「デザイナーズホテル」に相当する。）",
+ "Blu-ray_Disc [SEP] 同様に、BDについてもHD映像の普及に伴いカムコーダや編集などの用途での機器の需要は見込まれる。それらの開発によって、小規模な放送局や制作プロダクションなどのユーザーがコンテンツ制作用機器として採用する可能性は考えられる。しかし、すでに放送用、業務用には同じ青紫色半導体レーザーを用いてPFDに記録するSONYのXDCAMが存在し、フラッシュメモリに記録するメモリーカード記録タイプのカムコーダも追加された。パナソニックからもメモリーカード記録タイプのカムコーダの発売が予定されており、この用途とは違う市場である。",
+ "米沢藩 [SEP] このような深刻な財政難にも関わらず、第3代藩主綱勝は藩士に対して倹約を命じつつ自らは大好きな能楽にのめり込み、明暦3年（1657年）の火事では城下の東600戸を焼失したにも関わらず6000人の家臣を動員して狩りを行い、それに要した費用は代官や商人から借りることで補い、米沢藩の借金生活がこの時から開始された。綱憲は実父吉良義央夫妻の浪費による負債2780両を立て替えた上に、藩主の実父であるとして毎年6000両の援助金を送り、元禄11年（1698年）の鍛冶橋における吉良屋敷類焼では呉服橋に8000両の費用をかけて新邸を造築した上、米沢から大工50人を派遣した。さらに麻布藩邸などの新築、参勤交代などでの奢侈を行い、藩の貯金を一般会計に流用するまでに至る。"]
 ```

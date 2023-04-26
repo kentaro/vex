@@ -6,10 +6,9 @@
 Mix.install(
   [
     {:bumblebee, "~> 0.3.0"},
+    {:scidata, "~> 0.1.9"},
+    {:explorer, "~> 0.5.0"},
     {:exla, ">= 0.0.0"},
-    {:flow, "~> 1.2.4"},
-    {:req, "~> 0.3"},
-    {:jumanpp, "~> 0.1.0"},
     {:ex_faiss, github: "elixir-nx/ex_faiss"}
   ],
   config: [nx: [default_backend: EXLA.Backend]],
@@ -29,213 +28,101 @@ Along with the emerging LLMs, vector search engines have become increasingly imp
 
 ## Dataset
 
-We use JSQuAD distributed in [yahoojapan/JGLUE: JGLUE: Japanese General Language Understanding Evaluation](https://github.com/yahoojapan/JGLUE) to demonstrate our DIY vector search engine.
-
 ```elixir
 dataset =
-  "https://raw.githubusercontent.com/yahoojapan/JGLUE/main/datasets/jsquad-v1.1/train-v1.1.json"
-  |> Req.get!()
-  |> Map.get(:body)
-  |> Jason.decode!()
-  |> Map.get("data")
-
-IO.puts("suppress the long long output...")
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-suppress the long long output...
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-:ok
-```
-
-```elixir
-docs =
-  dataset
-  |> Enum.map(fn data ->
-    data
-    |> Map.get("paragraphs")
-    |> Enum.map(fn paragraph ->
-      paragraph |> Map.get("context")
-    end)
-  end)
-  |> List.flatten()
+  Scidata.Squad.download()
+  |> Scidata.Squad.to_columns()
+  |> Map.get("context")
   |> Enum.shuffle()
-  # to avoid crushing when predicting
-  |> Enum.take(50)
+  |> Enum.take(100)
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-["プロテスタント [SEP] プロテスタントは、宗教改革運動を始めとして、カトリック教会（または西方教会）から分離し、特に（広義の）福音主義を理念とするキリスト教諸教派を指す。日本ではカトリック教会（旧教）に対し、「新教」（しんきょう）ともいう。この諸教派はナザレのイエスをキリスト（救い主）として信じる宗教 である。イエス・キリストが、神の国の福音を説き、罪ある人間を救済するために自ら十字架にかけられ、復活したものと信じる。「父なる神」 と「その子キリスト」 と「聖霊」を唯一の神（三位一体・至聖三者）として信仰する。",
- "アルゼンチンの歴史 [SEP] このような外国資本と移民による経済の拡大は、確かに繁栄をもたらしたものの、一方で鉄道や農牧業といった基幹産業が外国資本の手中にあることはアルゼンチンの経済的対外従属を深め、また、輸出経済のこのような形での成立は少数の大地主を基盤とする寡頭支配層の確立をもたらした。以降のアルゼンチンの歴史はこのような諸問題を如何にして解決するかが大きな焦点となる。",
- "演繹 [SEP] 帰納に於ける前提と結論の導出関係が「蓋然的」に正しいとされるのみであるのに対し、演繹の導出関係は、その前提を認めるなら、「絶対的」「必然的」に正しい。したがって理論上は、前提が間違っていたり適切でない前提が用いられたりした場合には、誤った結論が導き出されることになる。近代では、演繹法とは記号論理学によって記述できる論法の事を指す。",
- "徳川綱吉 [SEP] 家綱時代の大老・酒井忠清を廃し、自己の将軍職就任に功労があった堀田正俊を大老とした。その後、忠清は病死するが、酒井家を改易にしたい綱吉は大目付に「墓から掘り起こせ」などと命じて病死かどうかを異常なまでに詮議させたという。しかし証拠は出せず、結局は忠清の弟忠能が言いがかりをつけられて改易されるにとどまった。",
- "世界の艦船 [SEP] その月に日本国内で竣工した新造商船を、写真付きで紹介する。海上公試時の旋回シーンを空撮したものが多く、1ページで2～4隻の割合で掲載される。自衛隊艦船や著名な商船の場合は本コーナーではなく、冒頭にて数ページを割いて写真記事の扱いとなる。冒頭に掲載される場合、起工時や進水時の状態である場合も多い。",
- "ムハンマド・イブン＝アブドゥッラーフ [SEP] ムハンマド率いるイスラーム共同体は、周辺のベドウィン（アラブ遊牧民）の諸部族と同盟を結んだり、ムハンマドに敵対するマッカの隊商交易を妨害したりしながら、急速に勢力を拡大した。こうして両者の間で睨み合いが続いたが、ある時、マディーナ側はマッカの大規模な隊商を発見し、これを襲撃しようとした。しかし、それは事前にマッカ側に察知され、それを阻止するために倍以上の部隊を繰り出すが、バドルの泉の近くで両者は激突、マディーナ側が勝利した。これをバドルの戦いと呼び、以後イスラム教徒はこれを記念し、この月（9月、ラマダーン月）に断食をするようになった。",
- "漢詩 [SEP] 現在でも自作の漢詩集を著している陳舜臣等、漢詩創作の愛好家は存在しており、月刊誌大法輪では読者の投稿した漢詩が毎号掲載されている。また、自らは創らないのものの、書道の世界では、漢詩は読むもの、見るものとして基礎的な教養の一部となっている。また、学校教育でも、漢詩にふれることが多い。",
- "ジェノヴァ [SEP] 1797年、ナポレオン・ボナパルト率いるフランス軍に侵攻され、その傀儡国家であるリグリア共和国となり、1805年にはフランスに併合、ナポレオン失脚後のウィーン会議後も共和国であったため回復させてもらえず、ウィーン議定書によりサルデーニャ王国へ編入され、ジェノヴァは独立を失った。その後リソルジメントでサルデーニャ王国がイタリア半島統一を成し、イタリアの有力な都市の一つとして発展した。",
- "東南アジア [SEP] 地域別に植民地化の特徴を見ていくと、まずジャワ・スマトラ周辺（大スンダ列島南部）では、19世紀初頭には特定の港湾や沿岸部などのみが支配されていたが、次第にイギリス・オランダ間の支配権競争が激しくなり始めた。オランダ政府は、ジャワ島でサトウキビ、コーヒー、タバコなどを強制的に栽培させ、現地の農民は搾取によって貧窮に追い込まれた。それに伴い、各地で抵抗戦争が19世紀末から20世紀初頭まで頻発した。",
- "五胡十六国時代 [SEP] 一連の混乱に乗じて、東晋の将軍桓温は成漢を滅亡させて四川を東晋の版図に組み入れ、354年に北伐を行い前秦を攻めるが撃退された。桓温は一旦兵を引き上げるが、356年に再び北伐を行い、洛陽を占領した。",
- "Microsoft_Windows_XP [SEP] 政府機関や企業向けの有償カスタムサポートは、2014年4月9日以降も提供される。実際に英国やオランダの政府が契約している。",
- "日本赤十字社 [SEP] 受賞者には各都道府県で開催される、献血感謝のつどいに出席が出来る。招待状が届くので出席か欠席のどちらかを選ぶ必要がある。欠席者には下記の品が郵送される。",
- "看護師 [SEP] 日本では看護職の改善に向けた取り組みが継続実施されており、1992年には看護師等の人材確保の促進に関する法律が成立した。同法では看護師養成に向けた新しい大学プログラムが作られ、教育の場が養成所から大学・大学院へと急速な転換を遂げるようになった。同プログラムによって日本の看護師の教育水準は向上しており、高度な専門知識と技術を持ち合わせる専門看護師(1996)や認定看護師(1997)なども生まれている。",
- "ハンガリー王国 [SEP] その後1301年にアールパート朝が断絶すると選挙王制となり、1308年にナポリ王国のアンジュー家から王が出た（ハンガリー・アンジュー朝）。以後世襲王朝が続き、その間ハンガリー王だけでなくポーランド王も兼ねるようになったが1395年に断絶した。一方、14世紀になると東方からオスマン帝国が興隆し、コソボの戦い以後バルカン半島に進出してきた。神聖ローマ皇帝でハンガリー王のジキスムントは連合十字軍を組織し、対抗したが1396年ニコポリスの戦いで敗北した。",
- "客室乗務員 [SEP] なお現在の日本においては、雇用形態の柔軟化を受けて、国内大手航空会社の中途採用では30代、経験者の有期限再雇用では40代での採用も可能になるよう変わりつつあるなど、かつては「若いこと」が採用の条件であったが、その様な状況は変わりつつある。現在は子持ちの客室乗務員が採用される事も珍しくもない。",
- "ちびまる子ちゃん [SEP] コミックス版全17巻（りぼんマスコットコミックス）、文庫版全9巻、愛蔵版（特製ちびまる子ちゃん）全5巻、集英社ガールズリミックス版第9 - 10巻の全2巻、および『ちびまる子ちゃん-大野君と杉山君』『ちびまる子ちゃん -わたしの好きな歌』『ちびまる子ちゃん キミを忘れないよ』の映画原作3巻が刊行されている。文庫版は、レギュラー連載の最後となった「その114」（単行本14巻収録分）までの収録となったほか、『ももこのほのぼの劇場』が収録から外された。逆に、『大野君と杉山君』は文庫版の収録対象となった（第4巻に収録）。文庫版の電子書籍はフルカラー化（さきこの冬服など、配色がアニメと異なるケースもある）されている一方、『大野君と杉山君』は外されているほか、収録話数の区切りも紙版とは相違がある。",
- "社会主義国 [SEP] 国家主席・国務委員長とは、世界における社会主義国の国家元首( 大統領）の役職名である。社会主義国の場合、国家元首は儀礼的な存在。",
- "武器 [SEP] 13世紀後半の中国で誕生した銃が、15世紀前半のアナトリアで改良され、武器のあり方を大きく変化させた。中国で使用されていた火器が、13世紀のモンゴル帝国の遠征と交易によって中東へと伝播して、アナトリアで銃が発展したと考えられている。",
- "ブルンジ [SEP] 議会は両院制で、上院と国民議会（下院）で構成される。上院は37議席以上54議席未満と規定され、全17県から間接選挙により選出される地方・民族代表（任期5年）と、歴代国家元首（終身任期）により構成される。国民議会は比例代表制に基づき選出された議員で構成され、定数は100議席を下回ってはならないとされている。任期は5年。得票率が2%を下回った政党や会派は議席を獲得できない。",
- "漢文 [SEP] 黄河流域に発生した黄河文明は、言語を筆記する文字として漢字を生み、漢字で文字記録を行う文化を発達させた。ところが、漢字は異なる言語を用いる複数の文化集団によって受容されたため、漢字による文章を取り交わす圏内で共通の文語が形成されていった。これが、漢文の誕生であると言え、漢文を共通文語として用いる文化圏が、正に後の政治的統一中国の原型となった。最初の長期安定統一政権なる漢代には中央と地方との文書のやり取りの中で漢文法が確立し、以降中国ではこの漢代の伝統的な文法に従って、文章が書かれていくことになり、時代や地域によって口語は多様だったにもかかわらず、文語である漢文の文法上の変化は少なかった。普通「漢文」というと、このような伝統的な文法に従っているもの（正則漢文）を指す。",
- "小田急小田原線 [SEP] 一部を除いて登戸駅 - 成城学園前駅間は緩行線、成城学園前駅 - 経堂駅間は急行線、経堂駅 - 代々木上原駅間は再び緩行線を使用し、登戸駅と成城学園前駅でそれぞれ新宿方面の快速急行と各駅停車に、経堂駅で千代田線方面の各駅停車に接続する。現状で唯一全列車が急行線と緩行線を両方使う種別である。",
- "ベガルタ仙台 [SEP] ルヴァン杯は、グループステージを3勝2分1敗の勝ち点11・得失点差+4で2年連続の1位通過。プレーオフステージ で湘南と対戦し1勝1敗となるも、2戦合計スコア3-4で敗退（湘南は同大会で優勝を果たす）。",
- "労働者派遣事業 [SEP] 人材派遣という言葉の意味が明確ではないことの行政上の実例として、商業登記先例が挙げられる。2006年までは、会社の目的登記の表現には具体性が要求されており、会社目的の登記先例を掲載した目的事例集によれば、「人材派遣業」という用語は具体性を欠くものとして登記不可とされていた。このため、登記実務上は、「労働者派遣事業」など労働者派遣法に則した表現を用いている。",
- "天皇杯_JFA_全日本サッカー選手権大会 [SEP] 都道府県予選を兼ねる地方大会（都道府県サッカー選手権）の優勝チームまたは代表決定戦の勝利チームが本大会への出場権を得る。ただし、優勝チームが上記のシード枠での本大会出場となる場合は準優勝チームが繰り上がる（例：第81回の長崎大学）。第94回（2014年）までは高校・ユース世代（第2種登録チーム）の参加も認められていたが、規約の改正に伴い第2種登録チームの参加が第95回大会から認められなくなった。また、J3リーグに参加するチームにはシード権は与えられておらず、アマチュアシード枠に入る資格も有しないため、全て都道府県予選を制して都道府県代表として出場する必要がある。第52回から第75回までは地区予選は地域リーグのブロックごとに行われてきたが、マンネリ化やJFA登録チーム数の増加により狭き門となってきたため、第76回から都道府県単位で代表を選出する方式に変更された。",
- "助詞 [SEP] 主に体言に付いて、文の中での意味関係（格）を表す。格助辞、格のくっつきとも言う。",
- "使徒 [SEP] さらに、パウロ書簡は、使徒の基準を伝えている。パウロ書簡による使徒の定義は、復活した主イエスの証人であること主イエスに使徒として召されたことである。重要な点として、パウロは「使徒」としての権威を強調していることが挙げられる。このパウロの使徒としての権威は、使徒ペトロも認めている。次に、パウロは、使徒は12人（あるいは、自身を含めて13人）に限定していない。",
- "立命館大学 [SEP] 同組織は中央委員会を基幹の会議体と位置づける。同会を形成する組織には様々ある。学生自治の中核を担う組織として、中央常任委員会・中央事務局(財務部・特別事業部・調査企画部を内包する)・学園振興委員会・全学自治会・代議員会・各学部自治会が存在する。また、課外三本部として体育会本部・学術本部・学芸総部本部が存在し、中央事業団体として応援団(チアリーダー部・吹奏楽部を内包する)・新聞社・放送局(RBC)が存在する。",
- "ステンレス鋼 [SEP] 鍛造は、鋼塊にハンマやプレスで大きな力を加えて形を作る加工法で、同時に材料内部の欠陥を押しつぶし、結晶粒の微細化なども実現する。一般的には、鍛造前に鋼塊の加熱を行い、熱間または温間で鍛造する。オーステナイト系は、その著しい加工硬化のため、一般的には冷間鍛造されない。線材では、炭素・窒素を極低量化して軟質にし、ニッケルや銅を添加して加工硬化を抑えた鋼種のオーステナイト系を使って冷間鍛造することもある。",
- "スペインの歴史 [SEP] イスラム帝国勢力のウマイヤ朝は、北アフリカにまで勢力を伸張させると、さらに711年にベルベル人を率いたターリク・イブン・ズィヤードのもとでジブラルタル海峡を渡ってイベリア半島へ上陸し、グアダレーテの戦いで西ゴート王国を滅ぼした。一時はサラゴサ、レオンなど北部の都市まで彼らによって征服され、カンタブリア山脈、ピレネー山脈付近を除くイベリア半島の大部分がイスラム勢力の支配下に入り、アル＝アンダルスとして716年よりウマイヤ朝の属州となった。",
- "大阪ドーム [SEP] フェンスは2012年のシーズン開幕前に改修し、選手の安全確保を目的として「ソフトラバーフェンス」と呼ばれるクッション性の高いフェンスを採用すると共に、これまで15年間使ってきた水色から濃い紺色（オリックス・バファローズのチームカラー）に変更した。更に翌年には水色を残していたスタンド上部のフェンスも同色に塗り替えた。",
- "Adobe_Creative_Suite [SEP] 2006年に発売。Adobe Video Collectionの後継にあたる映像編集に特化したシリーズ。本シリーズはWindows版のみの販売で、Macintoshには対応していない。既存製品をパッケージした形でのリリースである為、バージョン表記の統一はなされなかった。StandardとPremiumの2種類のパッケージが存在。",
- "農民 [SEP] 古くから農民は様々な文献に登場するが、その多くにおいて、彼らは下等な欲求の表現者もしくは田舎臭い喜劇の演者として扱われ、peasantという言葉自体が軽蔑的な意味合いで用いられてきた側面がある。特にヨーロッパのキリスト教世界では、社会は「働く者（農民）」、「祈る者（聖職者）」、「闘う者（王侯・騎士）」の三階級に分かれるという理論が一般に受け入れられていた。後にフランスで生まれたアナール学派の歴史学者たちは、それまで軽視されてきた農民階層の重要性を指摘し始めた。フェルナン・ブローデルは、その主要著書の一つ『物質文明・経済・資本主義』の第一巻を『15-18世紀 日常性の構造』と題し、市場経済より低層に、巨大で目に見えづらい世界が確かに存在していたことを明らかにした。",
- "松本清張 [SEP] ベトナム戦争に際して、『ワシントン・ポスト』紙に掲載するベトナム反戦広告募集の呼びかけ人の一人となり、1967年4月3日に掲載された。また、「ベ平連」の中心人物の一人であった鶴見俊輔が清張に資金の不足を訴えた際、清張は「鶴見が驚くほどの額」を寄付した。",
- "広島市 [SEP] 。現在の空港通り最南端は長束より約9kmの距離である。",
- "ステンレス鋼 [SEP] ドーム球場やコンベンション・センターのような大型建造物の屋根も、メンテナンスフリーや美観の向上のために、ステンレス鋼使用が浸透している。屋根は日射や気温による温度変化が起こるため、大型の屋根では熱膨張率の低いフェライト系の使用が望ましい。海浜地区などの腐食が厳しい場所に建てられる場合は、高耐食ステンレス鋼や塗装ステンレス鋼が適用される。",
- "測量 [SEP] 位置、高さを求める測量。トラバース測量とも呼ばれる。測点間の測定方法は三角測量と同一。基準点から測点A、測点Aから測点B、測点Bから測点Cという具合に測点を結んで測量区域を多角形で示し、多角形の各辺の長さ・角度で位置関係を求める。",
- "ホテル [SEP] 2014年10月26日付の中国旅游新聞網によると、旅行会社エクスペディアのヨーロッパ12か国に対する調査で、最も歓迎する観光客は日本人で2位はアメリカ人、スイス人と続き、逆に歓迎されないのはフランス人、インド人、中国人（中華人民共和国）だった。特に日本人はチェックアウト時の部屋の状態の良さや礼儀正しさ、好奇心、現地の習慣を理解しているなどの点で観光客の模範であるとされた。調査によると、かつては無遠慮、がさつ、やかましいなどの点で評価の低かった米国人のマナーが改善され、優秀な観光客と評価され、フランス人、中国人、ドイツ人はケチな観光客と評された。またファッションセンスの良さで評価されたのは、フランス人、イタリア人、スペイン人で、身だしなみに気を使わない印象を与えたのは、旅での動きやすさや快適さを重視するドイツ人、イギリス人、アメリカ人だった。",
- "カール・マルクス [SEP] 酒好きであり、またヘビースモーカーだった。マルクスがラファルグに語ったところによると「資本論は私がそれを書く時に吸った葉巻代にすらならなかった」という。家計の節約のために安物で質の悪い葉巻を吸い、体調を壊して医者に止められている。",
- "東海道新幹線 [SEP] 1996年（平成8年）3月改正より一部列車が、2003年（平成15年）10月改正で全列車が270 km/h運転となった。さらに2015年（平成27年）3月改正より下り列車1本が285 km/h運転となっている。",
- "ナノテクノロジー [SEP] 生体内には分子レベルの機械システムがあることは明らかだが、人工の分子機械はまだ研究が始まったばかりである。人工の分子機械の研究ではカリフォルニア大学バークレー校とローレンス・バークレー国立研究所の の研究が知られている。彼らは外部から印加する電圧で制御できる3種類の分子デバイスの試作に成功している。",
- "天皇杯_JFA_全日本サッカー選手権大会 [SEP] その後、過密日程の緩和の観点から、第97回（2017年度）は4月開幕、第98回（2018年度）以降は5月開幕となっており、概ね以下のような日程が組まれている。なお、他の公式戦（リーグ戦やAFCチャンピオンズリーグ・FIFAクラブワールドカップなど）と日程が重複または近接する場合には、当該試合に関わるチームの天皇杯の試合は予備日（基本的に当該試合日の翌水曜日または翌土曜日）に開催される。",
- "ブータン [SEP] 陸軍の装備品は迫撃砲や分隊支援火器等の小火器のみである。砲兵戦力および機甲戦力は有さず、装甲兵員輸送車も一部の部隊に若干数が配備されるにとどまる。小火器は、84ミリ迫撃砲、AK-101、FN FAL、H&amp;K G3、FN ブローニング・ハイパワーの装備が確認されている。",
- "メキシコの歴史 [SEP] またスペインの植民地支配システムはエンコミエンダ制と呼ばれ、植民者に征服地の統治を委任する内容だったため、恣意的かつ搾取収奪的統治が行われた。また、スペイン人による先住民への苦役など苛酷な支配、従来の食糧生産システムの破壊による飢餓などが、先住民の死亡率を高めた。カトリック司祭であったラス・カサスはこのような事態を憂慮して、スペイン王室へ直訴したため、1550年には「バリャドリード論争」とよばれる植民地問題に関する一連の議論が交わされた。",
- "マヤ文明 [SEP] 他の遺跡にも独自の時期区分がありつつも比較検討のためにワシャクトゥンの時期区分名が使用される。ただし、ユカタン半島北部やグアテマラ高地の遺跡には適用されない。",
- "小田急小田原線 [SEP] 2018年3月17日のダイヤ改正より千代田線直通列車が朝夕を中心に設定された。新松田駅 - 小田原駅間の日中の運行本数は1時間3本に削減された。",
- "エリザベス1世 [SEP] 国内に急速に不満が広まり、多くの人々がメアリーの宗教政策に対抗する存在としてエリザベスに注目した。そして、1554年1月から2月にかけてイングランドとウェールズの各地でトマス・ワイアットに率いられた反乱が発生する（ワイアットの乱）。",
- "大阪ドーム [SEP] 現在は全てのビジョンにおいて表示されていない。ただし、阪神が主催ゲームを行う場合には、ビジョンで案内されている。",
- "アメリカ陸軍 [SEP] 米国陸軍は、アメリカの武官組織であり、国防総省の3つの軍事部門のうちの1つである陸軍省に属している。米国陸軍は、上級任命の文官である陸軍長官（SECARMY）と、軍の最高責任者である陸軍参謀長（CSA）が指揮を執っており、統合参謀本部のメンバーでもある。陸軍は最大の兵科であり、2020年度の正規軍（USA）の末端兵力は480,893人、陸軍州兵（ARNG）は336,129人、米陸軍予備役（USAR）は188,703人、米陸軍の複合コンポーネント兵力は1,005,725人と予測されている。軍隊の一部門であるアメリカ陸軍の使命は、「戦闘指揮官を支援し、あらゆる軍事作戦と紛争の範囲において、迅速かつ持続的な陸軍支配を提供することにより、わが国の戦争を戦い、勝利すること」である。陸軍は、世界中の紛争に参加し、米国の主要な地上攻撃・防御部隊となっている。",
- "水素イオン指数 [SEP] 計量法におけるピーエッチは、濃度の計量単位であり、“モル毎リットルで表した水素イオン濃度の値に、活動度係数を乗じた値の逆数の常用対数”である。計量法では、pHの読みが「ピーエッチ」という位置付けではなく、「ピーエッチ」そのものが計量単位であり、ピーエッチの単位記号が「pH」である。計量法・計量単位令・計量単位規則では、「水素イオン指数」と「水素イオン濃度指数」の2語は用いられていない。",
- "ウクライナ [SEP] キエフ総主教庁・ウクライナ正教会の教会法上の合法性を認めている他国の正教会は長らく存在していなかったが、キエフ総主教庁は教会法解釈・歴史認識につき主張をしつつ、自らの合法性の承認を得るべく様々な活動を行っており、信徒数の上でもウクライナにおける最大の教会となっている。なお、懸案だったロシア正教会からの独立問題については、2014年にロシアがクリミア半島を併合したことによる反ロ感情の高まりを受け、2018年10月11日にコンスタンティノープル総主教庁から独立の承認を得ることに成功した。"]
-```
-
-The code below takes a long time, because `Jumanpp.parse!` calls the `jumanpp` command in a shell context.
-
-```elixir
-preprocessed =
-  docs
-  |> Flow.from_enumerable(stages: 10)
-  |> Flow.map(fn doc ->
-    doc
-    |> String.replace(~r/^.+ \[SEP\] /, "")
-    |> Jumanpp.parse!()
-    |> Enum.map(fn token ->
-      token |> Map.get(:surface)
-    end)
-    |> Enum.join(" ")
-  end)
-  |> Enum.to_list()
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-["プロテスタント は 、 宗教 改革 運動 を 始め と して 、 カトリック 教会 （ または 西方 教会 ） から 分離 し 、 特に （ 広義 の ） 福音 主義 を 理念 と する キリスト教 諸 教 派 を 指す 。 日本 @ で は カトリック 教会 （ 旧教 ） に 対し 、 「 新教 」 （ しん @ @ @ @ @ @ @ きょう ） と も いう 。 この 諸 教 派 は ナザレ の イエス を キリスト （ 救い主 ） と して 信じる 宗教 \\ である 。 イエス ・ キリスト が 、 神 の 国 @ の 福音 を 説き 、 罪 @ ある 人間 を 救済 する ため に 自ら @ 十字架 に かけ @ @ @ @ @ られ 、 復活 した もの と 信じる 。 「 父 なる 神 」 \\ と 「 その 子 @ キリスト 」 \\ と 「 聖霊 」 を 唯一 の 神 （ 三位一体 ・ 至聖三者 ） と して 信仰 する 。",
- "このような 外国 資本 と 移民 に よる @ @ @ 経済 の 拡大 は 、 確かに 繁栄 を もたらした もの の 、 一方 で 鉄道 や 農牧 業 と いった 基幹 産業 が 外国 資本 の 手中 に ある こと は アルゼンチン の 経済 的 対外 従属 を 深め 、 また 、 輸出 経済 の このような 形 @ @ で の 成立 は 少数 の 大地主 を 基盤 と する 寡頭 支配 層 の 確立 を もたらした 。 以降 の アルゼンチン の 歴史 は このような 諸 問題 を 如何に して 解決 する か が 大きな 焦点 と なる @ 。",
- "帰納 に 於 け る 前提 と 結論 の 導出 @ 関係 が 「 蓋然 的 」 に 正しい と さ れる のみ である の に 対し 、 演繹 の 導出 @ 関係 は 、 その 前提 を 認める なら 、 「 絶対 的 」 「 必然 的 」 に 正しい 。 したがって 理論 上 は 、 前提 が 間違って いたり 適切で ない 前提 が 用い られたり した 場合 に は 、 誤った 結論 が 導き 出さ れる こと に なる @ 。 近代 で は 、 演繹 法 と は 記号 論理 学 に よって @ @ @ 記述 できる 論法 の 事 @ を 指す 。",
- "家綱 時代 の 大老 ・ 酒井 忠清 を 廃し 、 自己 の 将軍 職 就任 に 功労 が あった 堀田 @ 正俊 を 大老 と した 。 その後 、 忠清 は 病死 する が 、 酒井 家 を 改易 に し たい 綱吉 は 大 @ 目付 に 「 墓 から 掘り起こせ 」 など と 命じて 病死 か どう か を 異常な まで に 詮議 さ せた と いう 。 しかし 証拠 は 出せ ず 、 結局 は 忠清 の 弟 忠能 が 言いがかり を つけ @ @ @ @ @ @ @ @ @ られて 改易 さ れる に とどまった 。",
- "その 月 @ に 日本 @ 国 @ 内 で 竣工 した 新造 商船 を 、 写真 付き で 紹介 する 。 海上 公試 時 @ の 旋回 シーン を 空撮 した もの が 多く 、 1 ページ で 2 ～ 4 隻 の 割合 で 掲載 さ れる 。 自衛 隊 艦船 や 著名な 商船 の 場合 は 本 コーナー で は なく 、 冒頭 にて 数 ページ を 割いて 写真 記事 の 扱い と なる @ 。 冒頭 に 掲載 さ れる 場合 、 起工 時 や 進水 時 の 状態 である 場合 も 多い 。",
- "ムハンマド 率いる イスラーム 共同 体 @ は 、 周辺 の ベドウィン （ アラブ @ 遊牧 民 @ ） の 諸 部族 と 同盟 を 結んだり 、 ムハンマド に 敵対 する マッカ の 隊商 交易 を 妨害 したり し ながら 、 急速に 勢力 を 拡大 した 。 こうして 両者 の 間 で 睨み合い が 続いた が 、 ある 時 、 マディーナ 側 は マッカ の 大 @ 規模 な 隊商 を 発見 し 、 これ を 襲撃 しよう と した 。 しかし 、 それ は 事前 に マッカ 側 に 察知 さ れ 、 それ を 阻止 する ため に 倍 以上 の 部隊 を 繰り出す が 、 バドル の 泉 @ の 近く で 両者 は 激突 、 マディーナ 側 が 勝利 した 。 これ を バドル の 戦い と 呼び 、 以後 イスラム 教徒 は これ を 記念 し 、 この 月 @ （ 9 月 、 ラマダーン 月 @ ） に 断食 を する ように なった 。",
- "現在 でも 自作 の 漢詩 集 を 著して いる 陳 舜臣 等 、 漢詩 創作 の 愛好 家 は 存在 して おり 、 月刊 誌 大 法輪 で は 読者 の 投稿 した 漢詩 が 毎 号 掲載 さ れて いる 。 また 、 自ら @ は 創ら ない の もの の 、 書道 の 世界 で は 、 漢詩 は 読む もの 、 見る もの と して 基礎 的な 教養 の 一部 と なって @ いる 。 また 、 学校 教育 でも 、 漢詩 に ふれる @ @ こと が 多い 。",
- "1797 年 、 ナポレオン ・ ボナパルト 率いる フランス 軍 に 侵攻 さ れ 、 その 傀儡 国家 である リグリア 共和 国 @ と なり @ 、 1805 年 に は フランス に 併合 、 ナポレオン 失脚 後 の ウィーン 会議 後 も 共和 国 @ であった ため 回復 さ せて もらえ ず 、 ウィーン 議定書 に より @ @ @ サルデーニャ 王国 へ 編入 さ れ 、 ジェノヴァ は 独立 を 失った 。 その後 リソルジメント で サルデーニャ 王国 が イタリア 半島 統一 を 成し 、 イタリア の 有力な 都市 の 一 つ と して 発展 した 。",
- "地域 別 に 植民 地 化 の 特徴 を 見て いく と 、 まず ジャワ ・ スマトラ 周辺 （ 大 @ スンダ列島 南部 ） で は 、 19 世紀 初頭 に は 特定 の 港湾 や 沿岸 部 など のみ が 支配 さ れて いた が 、 次第に イギリス ・ オランダ 間 の 支配 権 競争 が 激しく なり 始めた 。 オランダ 政府 は 、 ジャワ 島 @ で サトウキビ 、 コーヒー 、 タバコ など を 強制 的に 栽培 さ せ 、 現地 の 農民 は 搾取 に よって @ @ @ 貧窮 に 追い 込ま れた 。 それ に 伴い 、 各地 で 抵抗 戦争 が 19 世紀 末 から 20 世紀 初頭 まで 頻発 した 。",
- "一連の 混乱 に 乗じて 、 東晋 の 将軍 桓 温 @ @ は 成漢 を 滅亡 さ せて 四川 を 東晋 の 版図 @ に 組み入れ 、 354 年 に 北伐 を 行い 前秦 を 攻める が 撃退 さ れた 。 桓 温 @ @ は 一旦 兵 を 引き上げる が 、 356 年 に 再び 北伐 を 行い 、 洛陽 を 占領 した 。",
- "政府 機関 や 企業 向け の 有償 カスタム サポート は 、 2014 年 4 月 9 日 以降 も 提供 さ れる 。 実際 に 英国 や オランダ の 政府 が 契約 して いる 。",
- "受賞 者 に は 各 都道府県 で 開催 さ れる 、 献血 感謝 の つどい に 出席 が 出来る 。 招待 状 が 届く ので 出席 か 欠席 の どちら か を 選ぶ 必要 が ある 。 欠席 者 に は 下記 の 品 @ が 郵送 さ れる 。",
- "日本 @ で は 看護 職 の 改善 に 向けた @ 取り組み が 継続 実施 さ れて おり 、 1992 年 に は 看護 師 等 の 人材 確保 の 促進 に 関する 法律 が 成立 した 。 同 法 で は 看護 師 養成 に 向けた @ 新しい 大学 プログラム が 作ら れ 、 教育 の 場 @ が 養成 所 @ から 大学 ・ 大学院 へ と 急速な 転換 を 遂げる ように なった 。 同 プログラム に よって @ @ @ 日本 @ の 看護 師 の 教育 水準 は 向上 して おり 、 高度な 専門 知識 と 技術 を 持ち 合わせる 専門 看護 師 ( 1996 ) や 認定 看護 師 ( 1997 ) など も 生まれて いる 。",
- "その後 1301 年 に アールパート 朝 が 断絶 する と 選挙 王制 と なり @ 、 1308 年 に ナポリ 王国 の アンジュー 家 から 王 が 出た （ ハンガリー ・ アンジュー 朝 ） 。 以後 世襲 王朝 が 続き 、 その 間 ハンガリー 王 だけ で なく ポーランド 王 も 兼ねる ように なった が 1395 年 に 断絶 した 。 一方 、 14 世紀 に なる @ と 東方 から オスマン 帝国 が 興隆 し 、 コソボ の 戦い 以後 バルカン 半島 に 進出 して きた 。 神聖 ローマ 皇帝 で ハンガリー 王 の ジキスムント は 連合 十字 軍 を 組織 し 、 対抗 した が 1396 年 ニコポリス の 戦い で 敗北 した 。",
- "なお 現在 の 日本 @ に おいて は 、 雇用 形態 の 柔軟 化 を 受けて 、 国 @ 内 大手 航空 会社 の 中途 採用 で は 30 代 、 経験 者 の 有 期限 再 雇用 で は 40 代 で の 採用 も 可能に なる よう 変わり つつ ある など 、 かつて は 「 若い こと 」 が 採用 の 条件 であった が 、 その様な 状況 は 変わり つつ ある 。 現在 は 子持ち の 客室 乗務 員 が 採用 さ れる 事 @ も 珍しく も ない 。",
- "コミックス 版 全 17 巻 （ りぼん マスコットコミックス ） 、 文庫 版 全 9 巻 、 愛蔵 版 （ 特製 ちび まる子 ちゃん ） 全 5 巻 、 集 英 社 @ ガールズリミックス 版 第 9 \\ \\ 10 巻 の 全 2 巻 、 および 『 ちび まる子 ちゃん - 大 野 君 と 杉山 君 』 『 ちび まる子 ちゃん \\ わたし の 好きな 歌 @ 』 『 ちび まる子 ちゃん \\ キミ を 忘れ ない よ 』 の 映画 原作 3 巻 が 刊行 さ れて いる 。 文庫 版 は 、 レギュラー 連載 の 最後 と なった @ 「 その 114 」 （ 単行本 14 巻 収録 分 ） まで の 収録 と なった @ ほか 、 『 ももこ の ほのぼの 劇場 』 が 収録 から 外さ れた 。 逆に 、 『 大野 @ @ @ 君 と 杉山 君 』 は 文庫 版 の 収録 対象 と なった @ （ 第 4 巻 に 収録 ） 。 文庫 版 の 電子 書籍 は フルカラー 化 （ さきこ の 冬服 @ など 、 配色 が アニメ と 異なる ケース も ある ） さ れて いる 一方 、 『 大野 @ @ @ 君 と 杉山 君 』 は 外さ れて いる ほか 、 収録 話 数 の 区切り も 紙 @ 版 と は 相違 が ある 。",
- "国家 主席 ・ 国務 委員 長 と は 、 世界 に おける 社会 主義 国 @ の 国家 元首 ( \\ 大統領 ） の 役職 名 @ である 。 社会 主義 国 @ の 場合 、 国家 元首 は 儀礼 的な 存在 。",
- "13 世紀 後半 の 中国 @ で 誕生 した 銃 が 、 15 世紀 前半 の アナトリア で 改良 さ れ 、 武器 の あり 方 を 大きく 変化 さ せた 。 中国 @ で 使用 さ れて いた 火器 が 、 13 世紀 の モンゴル 帝国 の 遠征 と 交易 に よって @ @ @ 中東 へ と 伝播 して 、 アナトリア で 銃 が 発展 した と 考え られて いる 。",
- "議会 は 両院 制 で 、 上院 と 国民 議会 （ 下院 ） で 構成 さ れる 。 上院 は 37 議席 以上 54 議席 未満 と 規定 さ れ 、 全 17 県 から 間接 選挙 に より @ @ @ 選出 さ れる 地方 ・ 民族 代表 （ 任期 5 年 ） と 、 歴代 国家 元首 （ 終身 任期 ） に より @ @ @ 構成 さ れる 。 国民 議会 は 比例 代表 制 に 基づき 選出 さ れた 議員 で 構成 さ れ 、 定数 は 100 議席 を 下回って は なら @ ない と さ れて いる 。 任期 は 5 年 。 得票 率 が 2 % を 下回った 政党 や 会派 は 議席 を 獲得 でき ない 。",
- "黄河 流域 に 発生 した 黄河 文明 は 、 言語 を 筆記 する 文字 と して 漢字 を 生み 、 漢字 で 文字 記録 を 行う 文化 を 発達 さ せた 。 ところが 、 漢字 は 異なる 言語 を 用いる 複数 の 文化 集団 に よって @ @ @ 受容 さ れた ため 、 漢字 に よる @ @ @ 文章 を 取り交わす 圏 内 で 共通の 文語 が 形成 さ れて いった 。 これ が 、 漢文 の 誕生 である と 言え 、 漢文 を 共通 文語 と して 用いる 文化 圏 が 、 正に 後 の 政治 的 統一 中国 @ の 原型 と なった @ 。 最初の 長期 安定 統一 政権 なる @ 漢 代 に は 中央 と 地方 と の 文書 の やり取り の 中 で 漢文 法 が 確立 し 、 以降 中国 @ で は この 漢 代 の 伝統 的な 文法 に 従って 、 文章 が 書か れて いく こと に なり @ 、 時代 や 地域 に よって @ @ @ 口語 は 多様だった に も かかわら ず 、 文語 である 漢文 の 文法 上 の 変化 は 少なかった 。 普通 「 漢文 」 と いう と 、 このような 伝統 的な 文法 に 従って いる もの （ 正則 漢文 ） を 指す 。",
- "一部 を 除いて 登戸 駅 \\ \\ 成城 学園前 駅 間 は 緩行 線 、 成城 学園前 駅 \\ \\ 経堂 駅 間 は 急行 線 、 経堂 駅 \\ \\ 代々木上原 駅 間 は 再び 緩行 線 を 使用 し 、 登戸 駅 と 成城 学園前 駅 で それぞれ 新宿 方面 の 快速 急行 と 各駅 停車 に 、 経堂 駅 で 千代田 @ 線 方面 の 各駅 停車 に 接続 する 。 現状 で 唯一 全 列車 が 急行 線 と 緩行 線 を 両方 使う 種別 である 。",
- "ルヴァン 杯 は 、 グループ ステージ を 3 勝 2 分 1 敗 の 勝ち 点 11・ 得失 点差 + 4 で 2 年 連続 の 1 位 通過 。 プレーオフ ステージ \\ で 湘南 と 対戦 し 1 勝 1 敗 と なる @ も 、 2 戦 合計 スコア 3 - 4 で 敗退 （ 湘南 は 同 大会 で 優勝 を 果たす ） 。",
- "人材 派遣 と いう 言葉 の 意味 が 明確で は ない こと の 行政 上 の 実例 と して 、 商業 登記 先例 が 挙げ られる 。 2006 年 まで は 、 会社 の 目的 登記 の 表現 に は 具体 性 が 要求 さ れて おり 、 会社 目的 の 登記 先例 を 掲載 した 目的 事例 集 に よれば @ @ @ 、 「 人材 派遣 業 」 と いう 用語 は 具体 性 を 欠く もの と して 登記 不可 と さ れて いた 。 この ため 、 登記 実務 上 は 、 「 労働 者 派遣 事業 」 など 労働 者 派遣 法 に 則した 表現 を 用いて いる 。",
- "都道府県 予選 を 兼ねる 地方 大会 （ 都道府県 サッカー 選手 権 ） の 優勝 チーム または 代表 決定 戦 @ の 勝利 チーム が 本 大会 へ の 出場 権 を 得る 。 ただし 、 優勝 チーム が 上記 の シード 枠 で の 本 大会 出場 と なる @ 場合 は 準 優勝 チーム が 繰り上がる （ 例 ： 第 81 回 の 長崎 @ @ 大学 @ ） 。 第 94 回 （ 2014 年 ） まで は 高校 ・ ユース 世代 （ 第 2 種 @ 登録 チーム ） の 参加 も 認め られて いた が 、 規約 の 改正 に 伴い 第 2 種 @ 登録 チーム の 参加 が 第 95 回 大会 から 認め られ なく なった 。 また 、 J 3 リーグ に 参加 する チーム に は シード 権 は 与え られて おら ず 、 アマチュアシード 枠 に 入る 資格 も 有し ない ため 、 全て 都道府県 予選 を 制して 都道府県 代表 と して 出場 する 必要 が ある 。 第 52 回 から 第 75 回 まで は 地区 予選 は 地域 リーグ の ブロック ごと に 行わ れて きた が 、 マンネリ 化 や JFA 登録 チーム 数 の 増加 に より @ @ @ 狭き 門 と なって @ きた ため 、 第 76 回 から 都道府県 単位 で 代表 を 選出 する 方式 に 変更 さ れた 。",
- "主に 体言 に 付いて 、 文 の 中 で の 意味 関係 （ 格 ） を 表す @ 。 格 助辞 @ 、 格 の くっつき と も 言う 。",
- "さらに 、 パウロ 書簡 は 、 使徒 の 基準 を 伝えて いる 。 パウロ 書簡 に よる @ @ @ 使徒 の 定義 は 、 復活 した 主 イエス の 証人 である こと 主 イエス に 使徒 と して 召さ れた こと である 。 重要な 点 と して 、 パウロ は 「 使徒 」 と して の 権威 を 強調 して いる こと が 挙げ られる 。 この パウロ の 使徒 と して の 権威 は 、 使徒 ペトロ も 認めて いる 。 次に 、 パウロ は 、 使徒 は 12 人 （ あるいは 、 自身 を 含めて 13 人 ） に 限定 して い ない 。",
- "同 組織 は 中央 委員 会 を 基幹 の 会議 体 @ と 位置づける 。 同 会 を 形成 する 組織 に は 様々 ある 。 学生 自治 の 中核 を 担う 組織 と して 、 中央 常任 委員 会 ・ 中央 事務 局 ( 財務 部 ・ 特別 事業 部 ・ 調査 企画 部 を 内包 する ) ・ 学園 振興 委員 会 ・ 全 学 自治 会 ・ 代議員 会 ・ 各 学部 自治 会 が 存在 する 。 また 、 課外 三 本部 と して 体育 会 本部 ・ 学術 本部 ・ 学芸 総 部 本部 が 存在 し 、 中央 事業 団体 と して 応援 団 ( チア リーダー 部 ・ 吹奏 楽部 を 内包 する ) ・ 新聞 社 @ ・ 放送 局 ( RBC ) が 存在 する 。",
- "鍛造 は 、 鋼塊 に ハンマ や プレス で 大きな 力 @ を 加えて 形 @ @ を 作る 加工 法 で 、 同時に 材料 内部 の 欠陥 を 押しつぶし 、 結晶 粒 の 微細 化 など も 実現 する 。 一般 的に は 、 鍛造 前 に 鋼塊 の 加熱 を 行い 、 熱 間 または 温 @ @ 間 で 鍛造 する 。 オーステナイト 系 は 、 その 著しい 加工 硬化 の ため 、 一般 的に は 冷間鍛造 さ れ ない 。 線材 で は 、 炭素 ・ 窒素 を 極 低 量 化 して 軟質 に し 、 ニッケル や 銅 を 添加 して 加工 硬化 を 抑えた 鋼種 の オーステナイト 系 を 使って 冷間鍛造 する こと も ある 。",
- "イスラム 帝国 勢力 の ウマイヤ 朝 は 、 北 アフリカ に まで 勢力 を 伸張 さ せる と 、 さらに 711 年 に ベル ベル 人 @ を 率いた ターリク ・ イブン ・ ズィヤード の もと @ で ジブラルタル 海峡 を 渡って イベリア 半島 へ 上陸 し 、 グアダレーテ の 戦い で 西 ゴート 王国 を 滅ぼした 。 一 時 は サラゴサ 、 レオン など 北部 の 都市 まで 彼 ら に よって @ @ @ 征服 さ れ 、 カンタブリア 山脈 、 ピレネー山脈 付近 を 除く イベリア 半島 の 大部分 が イスラム 勢力 の 支配 下 に 入り 、 アル ＝ アンダルス と して 716 年 より ウマイヤ 朝 の 属 州 と なった @ 。",
- "フェンス は 2012 年 の シーズン 開幕 前 に 改修 し 、 選手 の 安全 確保 を 目的 と して 「 ソフト ラバー フェンス 」 と 呼ば れる クッション 性 の 高い フェンス を 採用 する と 共に 、 これ まで 15 年間 使って きた 水色 から 濃い 紺色 （ オリックス ・ バファローズ の チーム カラー ） に 変更 した 。 更に 翌年 に は 水色 を 残して いた スタンド 上部 の フェンス も 同 色 @ に 塗り 替えた 。",
- "2006 年 に 発売 。 Adobe \\ i d e o \\ Collection の 後継 に あたる 映像 編集 に 特化 @ した シリーズ 。 本 シリーズ は Windows 版 のみ の 販売 で 、 Macintosh に は 対応 して い ない 。 既存 製品 を パッケージ した 形 @ @ で の リリース である 為 、 バージョン 表記 の 統一 は なされ なかった 。 Standard と Premium の 2 種類 の パッケージ が 存在 。",
- "古くから 農民 は 様々な 文献 に 登場 する が 、 その 多く に おいて 、 彼 ら は 下等な 欲求 の 表現 者 もしくは 田舎 臭い 喜劇 の 演者 と して 扱わ れ 、 peasant と いう 言葉 自体 が 軽蔑 的な 意味合い で 用い られて きた 側面 が ある 。 特に ヨーロッパ の キリスト教 世界 で は 、 社会 は 「 働く 者 （ 農民 ） 」 、 「 祈る 者 （ 聖職 者 ） 」 、 「 闘う 者 （ 王侯 ・ 騎士 ） 」 の 三 階級 に 分かれる と いう 理論 が 一般に 受け入れ られて いた 。 後 に フランス で 生まれた アナール 学 派 の 歴史 学者 たち は 、 それ まで 軽視 さ れて きた 農民 階層 の 重要 性 を 指摘 し 始めた 。 フェルナン ・ ブローデル は 、 その 主要 著書 の 一 つ 『 物質 文明 ・ 経済 ・ 資本 主義 』 の 第 一 巻 を 『 15 - 18 世紀 \\ 日常 性 の 構造 』 と 題し 、 市場 @ 経済 より 低層 に 、 巨大で 目 に 見え づらい 世界 が 確かに 存在 して いた こと を 明らかに した 。",
- "ベトナム 戦争 に 際して 、 『 ワシントン @ ・ ポスト 』 紙 @ に 掲載 する ベトナム 反戦 広告 募集 の 呼びかけ 人 @ の 一 人 と なり @ 、 1967 年 4 月 3 日 に 掲載 さ れた 。 また 、 「 ベ平連 」 の 中心 人物 の 一 人 であった 鶴見 @ @ 俊輔 が 清張 に 資金 の 不足 を 訴えた 際 、 清張 は 「 鶴見 が 驚く ほど の 額 」 を 寄付 した 。",
- "。 現在 の 空港 通り 最 南端 は 長束 より 約 9 km の 距離 である 。",
- "ドーム 球場 や コンベンション ・ センター の ような 大型 建造 物 @ の 屋根 も 、 メンテナンス フリーや 美観 の 向上 の ため に 、 ステンレス 鋼 使用 が 浸透 して いる 。 屋根 は 日射 @ や 気温 に よる @ @ @ 温度 変化 が 起こる ため 、 大型の 屋根 で は 熱 膨張 率 の 低い フェライト 系 の 使用 が 望ましい 。 海浜 地区 など の 腐食 が 厳しい 場所 に 建て @ られる 場合 は 、 高 耐 食 ステンレス 鋼 や 塗装 ステンレス 鋼 が 適用 さ れる 。",
- "位置 、 高 さ を 求める 測量 。 トラバース 測量 と も 呼ば れる 。 測点 間 の 測定 方法 は 三角 測量 と 同一 。 基準 点 から 測点 A 、 測点 A から 測点 B 、 測点 B から 測点 C と いう 具合 に 測点 を 結んで 測量 区域 を 多角形 で 示し 、 多角形 の 各 辺 の 長 さ ・ 角度 で 位置 関係 を 求める 。",
- "2014 年 10 月 26 日 付 の 中国 @ 旅 游 新聞 網 @ に よる @ @ @ と 、 旅行 会社 エクス ペディア の ヨーロッパ 12 か国 に 対する 調査 で 、 最も 歓迎 する 観光 客 は 日本 @ 人 @ で 2 位 は アメリカ 人 @ 、 スイス 人 @ と 続き 、 逆に 歓迎 さ れ ない の は フランス 人 @ 、 インド 人 @ 、 中国 @ 人 @ （ 中華人民共和国 ） だった 。 特に 日本 @ 人 @ は チェックアウト 時 @ の 部屋 の 状態 の 良 さ や 礼儀正し さ 、 好奇心 、 現地 の 習慣 を 理解 して いる など の 点 で 観光 客 の 模範 である と さ れた 。 調査 に よる @ @ @ と 、 かつて は 無遠慮 、 が さつ 、 やかましい など の 点 で 評価 の 低かった 米国 人 @ の マナー が 改善 さ れ 、 優秀な 観光 客 と 評価 さ れ 、 フランス 人 @ 、 中国 @ 人 @ 、 ドイツ 人 @ は ケチな 観光 客 と 評さ れた 。 また ファッション センス の 良 さ で 評価 さ れた の は 、 フランス 人 @ 、 イタリア 人 @ 、 スペイン 人 @ で 、 身だしなみ に 気 を 使わ ない 印象 を 与えた の は 、 旅 で の 動き やす さ や 快適 さ を 重視 する ドイツ 人 @ 、 イギリス 人 @ 、 アメリカ 人 @ だった 。",
- "酒好きであり 、 また ヘビースモーカー だった 。 マルクス が ラファルグ @ に 語った ところ に よる @ @ @ と 「 資本 論 は 私 が それ を 書く 時 に 吸った 葉巻 代 に すら なら @ なかった 」 と いう 。 家計 の 節約 の ため に 安物 で 質 @ の 悪い 葉巻 を 吸い 、 体調 を 壊して 医者 に 止め @ @ られて いる 。",
- "1996 年 （ 平成 8 年 ） 3 月 改正 より 一部 列車 が 、 2003 年 （ 平成 15 年 ） 10 月 改正 で 全 列車 が 270 \\ km /h 運転 と なった @ 。 さらに 2015 年 （ 平成 27 年 ） 3 月 改正 より 下り @ 列車 1 本 が 285 \\ km /h 運転 と なって @ いる 。",
- "生体 内 に は 分子 レベル の 機械 システム が ある こと は 明らかだ が 、 人工 の 分子 機械 は まだ 研究 が 始まった ばかりである 。 人工 の 分子 機械 の 研究 で は カリフォルニア 大学 バー クレー 校 と ローレンス ・ バークレー 国立 研究 所 @ の \\ の 研究 が 知ら れて いる 。 彼 ら は 外部 から 印加 する 電圧 で 制御 できる 3 種類 の 分子 デバイス の 試作 に 成功 して いる 。",
- "その後 、 過密 日程 の 緩和 の 観点 から 、 第 97 回 （ 2017 年度 ） は 4 月 開幕 、 第 98 回 （ 2018 年度 ） 以降 は 5 月 開幕 と なって @ おり 、 概ね 以下 の ような 日程 が 組ま れて いる 。 なお 、 他の 公式 戦 @ （ リーグ 戦 @ や AFC チャンピオンズリーグ ・ FIFA クラブ ワールドカップ など ） と 日程 が 重複 または 近接 する 場合 に は 、 当該 試合 に 関わる チーム の 天皇 杯 の 試合 は 予備 日 （ 基本 的に 当該 試合 日 の 翌 水曜日 または 翌 土曜日 ） に 開催 さ れる 。",
- "陸軍 の 装備 品 @ は 迫撃砲 や 分隊 支援 火器 等 の 小 火器 のみ である 。 砲兵 戦力 および 機甲 戦力 は 有さ ず 、 装甲 兵員 輸送 車 @ も 一部 の 部隊 に 若干 数 @ が 配備 さ れる に とどまる 。 小 火器 は 、 84ミリ 迫撃砲 、 AK - 101 、 FN \\ A L 、 H &a m p ; K \\ 3 、 FN \\ ブローニング ・ ハイパワー の 装備 が 確認 さ れて いる 。",
- "また スペイン の 植民 地 支配 システム は エンコミエンダ 制 と 呼ば れ 、 植民 者 に 征服 地 の 統治 を 委任 する 内容 だった ため 、 恣意 的 かつ 搾取 収 奪 的 統治 が 行わ れた 。 また 、 スペイン 人 @ に よる @ @ @ 先住 民 @ へ の 苦役 など 苛酷な 支配 、 従来 の 食糧 生産 システム の 破壊 に よる @ @ @ 飢餓 など が 、 先住 民 @ の 死亡 率 を 高めた 。 カトリック 司祭 であった ラス ・ カサス @ は このような 事態 を 憂慮 して 、 スペイン 王室 へ 直訴 した ため 、 1550 年 に は 「 バリャドリード 論争 」 と よば れる 植民 地 問題 に 関する 一連の 議論 が 交わさ れた 。",
- "他の 遺跡 に も 独自の 時期 区分 が あり つつ も 比較 検討 の ため に ワシャクトゥン の 時期 区分 名 @ が 使用 さ れる 。 ただし 、 ユカタン 半島 北部 や グアテマラ 高地 の 遺跡 に は 適用 さ れ ない 。",
- "2018 年 3 月 17 日 の ダイヤ 改正 より 千代田 @ 線 直通 列車 が 朝夕 を 中心 に 設定 さ れた 。 新松田 駅 \\ \\ 小田原 @ 駅 間 の 日中 の 運行 本数 は 1 時間 3 本 に 削減 さ れた 。",
- "国 @ 内 に 急速に 不満 が 広まり 、 多く の 人々 が メアリー の 宗教 政策 に 対抗 する 存在 と して エリザベス に 注目 した 。 そして 、 1554 年 1 月 から 2 月 に かけて @ @ @ @ @ イングランド と ウェールズ の 各地 で トマス ・ ワイアット に 率い られた 反乱 が 発生 する （ ワイアット の 乱 ） 。",
- "現在 は 全て の ビジョン に おいて 表示 さ れて い ない 。 ただし 、 阪神 が 主催 ゲーム を 行う 場合 に は 、 ビジョン で 案内 さ れて いる 。",
- "米国 陸軍 は 、 アメリカ の 武 官 組織 であり 、 国防 総 省 の 3 つ の 軍事 部門 の うち の 1 つ である 陸軍 省 に 属して いる 。 米国 陸軍 は 、 上級 任命 の 文 官 である 陸軍 長官 （ SECARMY ） と 、 軍 の 最高 責任 者 である 陸軍 参謀 長 （ CSA ） が 指揮 を 執って おり 、 統合 参謀 本部 の メンバー で も ある 。 陸軍 は 最大の 兵科 であり 、 2020 年度 の 正規 軍 （ USA ） の 末端 兵力 は 480 , 893 人 、 陸軍 州兵 （ ARNG ） は 336 , 129 人 、 米 陸軍 予備 役 （ USAR ） は 188 , 703 人 、 米 陸軍 の 複合 コンポーネント 兵力 は 1 , 005 , 725 人 と 予測 さ れて いる 。 軍隊 の 一 部門 である アメリカ 陸軍 の 使命 は 、 「 戦闘 指揮 官 を 支援 し 、 あらゆる 軍事 作戦 と 紛争 の 範囲 に おいて 、 迅速 かつ 持続 的な 陸軍 支配 を 提供 する こと に より @ @ @ 、 わが国 の 戦争 を 戦い 、 勝利 する こと 」 である 。 陸軍 は 、 世界 中 の 紛争 に 参加 し 、 米国 の 主要な 地上 攻撃 ・ 防御 部隊 と なって @ いる 。",
- "計量 法 に おける ピーエッチ は 、 濃度 の 計量 単位 であり 、 “ モル 毎 リットル で 表した @ 水素 イオン 濃度 の 値 @ に 、 活動 度 @ 係数 を 乗じた 値 @ の 逆数 の 常用 対 @ 数 ” である 。 計量 法 で は 、 pH の 読み が 「 ピーエッチ 」 と いう 位置付け で は なく 、 「 ピー エッチ 」 そのもの が 計量 単位 であり 、 ピーエッチ の 単位 記号 が 「 pH 」 である 。 計量 法 ・ 計量 単位 令 ・ 計量 単位 規則 で は 、 「 水素 イオン 指数 」 と 「 水素 イオン 濃度 指数 」 の 2 語 は 用い られて い ない 。",
- "キエフ 総主教 庁 ・ ウクライナ 正 教会 の 教会 法 上 の 合法 性 を 認めて いる 他 国 @ の 正 教会 は 長らく 存在 して い なかった が 、 キエフ 総主教 庁 は 教会 法 解釈 ・ 歴史 認識 に つき @ @ @ @ @ 主張 を し つつ 、 自ら @ の 合法 性 の 承認 を 得る べく 様々な 活動 を 行って おり 、 信徒 数 の 上 でも ウクライナ に おける 最大の 教会 と なって @ いる 。 なお 、 懸案 だった ロシア 正教 @ 会 から の 独立 問題 に ついて @ @ @ @ @ は 、 2014 年 に ロシア が クリミア @ 半島 を 併合 した こと に よる @ @ @ 反 ロ 感情 の 高まり を 受け 、 2018 年 10 月 11 日 に コンスタンティノープル 総主教 庁 から 独立 の 承認 を 得る こと に 成功 した 。"]
+["Many insects possess very sensitive and, or specialized organs of perception. Some insects such as bees can perceive ultraviolet wavelengths, or detect polarized light, while the antennae of male moths can detect the pheromones of female moths over distances of many kilometers. The yellow paper wasp (Polistes versicolor) is known for its wagging movements as a form of communication within the colony; it can waggle with a frequency of 10.6±2.1 Hz (n=190). These wagging movements can signal the arrival of new material into the nest and aggression between workers can be used to stimulate others to increase foraging expeditions. There is a pronounced tendency for there to be a trade-off between visual acuity and chemical or tactile acuity, such that most insects with well-developed eyes have reduced or simple antennae, and vice versa. There are a variety of different mechanisms by which insects perceive sound, while the patterns are not universal, insects can generally hear sound if they can produce it. Different insect species can have varying hearing, though most insects can hear only a narrow range of frequencies related to the frequency of the sounds they can produce. Mosquitoes have been found to hear up to 2 kHz., and some grasshoppers can hear up to 50 kHz. Certain predatory and parasitic insects can detect the characteristic sounds made by their prey or hosts, respectively. For instance, some nocturnal moths can perceive the ultrasonic emissions of bats, which helps them avoid predation.:87–94 Insects that feed on blood have special sensory structures that can detect infrared emissions, and use them to home in on their hosts.",
+ "Delhi Metro is being built and operated by the Delhi Metro Rail Corporation Limited (DMRC), a state-owned company with equal equity participation from Government of India and Government of National Capital Territory of Delhi. However, the organisation is under administrative control of Ministry of Urban Development, Government of India. Besides construction and operation of Delhi metro, DMRC is also involved in the planning and implementation of metro rail, monorail and high-speed rail projects in India and providing consultancy services to other metro projects in the country as well as abroad. The Delhi Metro project was spearheaded by Padma Vibhushan E. Sreedharan, the Managing Director of DMRC and popularly known as the \"Metro Man\" of India. He famously resigned from DMRC, taking moral responsibility for a metro bridge collapse which took five lives. Sreedharan was awarded with the prestigious Legion of Honour by the French Government for his contribution to Delhi Metro.",
+ "Despite their usurpation of imperial authority, the Fujiwara presided over a period of cultural and artistic flowering at the imperial court and among the aristocracy. There was great interest in graceful poetry and vernacular literature. Two types of phonetic Japanese script: katakana, a simplified script that was developed by using parts of Chinese characters, was abbreviated to hiragana, a cursive syllabary with a distinct writing method that was uniquely Japanese. Hiragana gave written expression to the spoken word and, with it, to the rise in Japan's famous vernacular literature, much of it written by court women who had not been trained in Chinese as had their male counterparts. Three late tenth century and early eleventh century women presented their views of life and romance at the Heian court in Kagerō Nikki by \"the mother of Fujiwara Michitsuna\", The Pillow Book by Sei Shōnagon and The Tale of Genji by Murasaki Shikibu. Indigenous art also flourished under the Fujiwara after centuries of imitating Chinese forms. Vividly colored yamato-e, Japanese style paintings of court life and stories about temples and shrines became common in the mid- and late Heian periods, setting patterns for Japanese art to this day.",
+ "Artspace on Orange Street is one of several contemporary art galleries around the city, showcasing the work of local, national, and international artists. Others include City Gallery and A. Leaf Gallery in the downtown area. Westville galleries include Kehler Liddell, Jennifer Jane Gallery, and The Hungry Eye. The Erector Square complex in the Fair Haven neighborhood houses the Parachute Factory gallery along with numerous artist studios, and the complex serves as an active destination during City-Wide Open Studios held yearly in October.",
+ "Model plants such as Arabidopsis thaliana are used for studying the molecular biology of plant cells and the chloroplast. Ideally, these organisms have small genomes that are well known or completely sequenced, small stature and short generation times. Corn has been used to study mechanisms of photosynthesis and phloem loading of sugar in C4 plants. The single celled green alga Chlamydomonas reinhardtii, while not an embryophyte itself, contains a green-pigmented chloroplast related to that of land plants, making it useful for study. A red alga Cyanidioschyzon merolae has also been used to study some basic chloroplast functions. Spinach, peas, soybeans and a moss Physcomitrella patens are commonly used to study plant cell biology.",
+ "Unicode has the explicit aim of transcending the limitations of traditional character encodings, such as those defined by the ISO 8859 standard, which find wide usage in various countries of the world but remain largely incompatible with each other. Many traditional character encodings share a common problem in that they allow bilingual computer processing (usually using Latin characters and the local script), but not multilingual computer processing (computer processing of arbitrary scripts mixed with each other).",
+ "The Sustainable Development Goals are ambitious, and they will require enormous efforts across countries, continents, industries and disciplines - but they are achievable. UNFPA is working with governments, partners and other UN agencies to directly tackle many of these goals - in particular Goal 3 on health, Goal 4 on education and Goal 5 on gender equality - and contributes in a variety of ways to achieving many of the rest. ",
+ "Uranium is used as a colorant in uranium glass producing orange-red to lemon yellow hues. It was also used for tinting and shading in early photography. The 1789 discovery of uranium in the mineral pitchblende is credited to Martin Heinrich Klaproth, who named the new element after the planet Uranus. Eugène-Melchior Péligot was the first person to isolate the metal and its radioactive properties were discovered in 1896 by Henri Becquerel. Research by Otto Hahn, Lise Meitner, Enrico Fermi and others, such as J. Robert Oppenheimer starting in 1934 led to its use as a fuel in the nuclear power industry and in Little Boy, the first nuclear weapon used in war. An ensuing arms race during the Cold War between the United States and the Soviet Union produced tens of thousands of nuclear weapons that used uranium metal and uranium-derived plutonium-239. The security of those weapons and their fissile material following the breakup of the Soviet Union in 1991 is an ongoing concern for public health and safety. See Nuclear proliferation.",
+ "The politics of Zhejiang is structured in a dual party-government system like all other governing institutions in Mainland China. The Governor of Zhejiang is the highest-ranking official in the People's Government of Zhejiang. However, in the province's dual party-government governing system, the Governor is subordinate to the Zhejiang Communist Party of China (CPC) Provincial Committee Secretary, colloquially termed the \"Zhejiang CPC Party Chief\".",
+ "In China, a call to boycott French hypermart Carrefour from May 1 began spreading through mobile text messaging and online chat rooms amongst the Chinese over the weekend from April 12, accusing the company's major shareholder, the LVMH Group, of donating funds to the Dalai Lama. There were also calls to extend the boycott to include French luxury goods and cosmetic products. Chinese protesters organized boycotts of the French-owned retail chain Carrefour in major Chinese cities including Kunming, Hefei and Wuhan, accusing the French nation of pro-secessionist conspiracy and anti-Chinese racism. Some burned French flags, some added Swastika (due to its conotaions with Nazism) to the French flag, and spread short online messages calling for large protests in front of French consulates and embassy. Some shoppers who insisted on entering one of the Carrefour stores in Kunming were blocked by boycotters wielding large Chinese flags and hit by water bottles. Hundreds of people joined Anti-French rallies in Beijing, Wuhan, Hefei, Kunming and Qingdao, which quickly spread to other cities like Xi'an, Harbin and Jinan. Carrefour denied any support or involvement in the Tibetan issue, and had its staff in its Chinese stores wear uniforms emblazoned with the Chinese national flag and caps with Olympic insignia and as well as the words \"Beijing 2008\" to show its support for the games. The effort had to be ceased when the BOCOG deemed the use of official Olympic insignia as illegal and a violation of copyright.",
+ "Conflict with Arius and Arianism as well as successive Roman emperors shaped Athanasius's career. In 325, at the age of 27, Athanasius began his leading role against the Arians as his bishop's assistant during the First Council of Nicaea. Roman emperor Constantine the Great had convened the council in May–August 325 to address the Arian position that the Son of God, Jesus of Nazareth, is of a distinct substance from the Father. Three years after that council, Athanasius succeeded his mentor as archbishop of Alexandria. In addition to the conflict with the Arians (including powerful and influential Arian churchmen led by Eusebius of Nicomedia), he struggled against the Emperors Constantine, Constantius II, Julian the Apostate and Valens. He was known as \"Athanasius Contra Mundum\" (Latin for Athanasius Against the World).",
+ "Following filming in Mexico, and during a scheduled break, Craig was flown to New York to undergo minor surgery to fix his knee injury. It was reported that filming was not affected and he had returned to filming at Pinewood Studios as planned on 22 April.",
+ "Strasbourg's historic city centre, the Grande Île (Grand Island), was classified a World Heritage site by UNESCO in 1988, the first time such an honour was placed on an entire city centre. Strasbourg is immersed in the Franco-German culture and although violently disputed throughout history, has been a bridge of unity between France and Germany for centuries, especially through the University of Strasbourg, currently the second largest in France, and the coexistence of Catholic and Protestant culture. The largest Islamic place of worship in France, the Strasbourg Grand Mosque, was inaugurated by French Interior Minister Manuel Valls on 27 September 2012.",
+ "Alexis de Tocqueville described the French Revolution as the inevitable result of the radical opposition created in the 18th century between the monarchy and the men of letters of the Enlightenment. These men of letters constituted a sort of \"substitute aristocracy that was both all-powerful and without real power\". This illusory power came from the rise of \"public opinion\", born when absolutist centralization removed the nobility and the bourgeoisie from the political sphere. The \"literary politics\" that resulted promoted a discourse of equality and was hence in fundamental opposition to the monarchical regime. De Tocqueville \"clearly designates ... the cultural effects of transformation in the forms of the exercise of power\". Nevertheless, it took another century before cultural approach became central to the historiography, as typified by Robert Darnton, The Business of Enlightenment: A Publishing History of the Encyclopédie, 1775–1800 (1979).",
+ "In addition to all of the above, the brain and spinal cord contain extensive circuitry to control the autonomic nervous system, which works by secreting hormones and by modulating the \"smooth\" muscles of the gut. The autonomic nervous system affects heart rate, digestion, respiration rate, salivation, perspiration, urination, and sexual arousal, and several other processes. Most of its functions are not under direct voluntary control.",
+ "The league held its first season in 1992–93 and was originally composed of 22 clubs. The first ever Premier League goal was scored by Brian Deane of Sheffield United in a 2–1 win against Manchester United. The 22 inaugural members of the new Premier League were Arsenal, Aston Villa, Blackburn Rovers, Chelsea, Coventry City, Crystal Palace, Everton, Ipswich Town, Leeds United, Liverpool, Manchester City, Manchester United, Middlesbrough, Norwich City, Nottingham Forest, Oldham Athletic, Queens Park Rangers, Sheffield United, Sheffield Wednesday, Southampton, Tottenham Hotspur, and Wimbledon. Luton Town, Notts County and West Ham United were the three teams relegated from the old first division at the end of the 1991–92 season, and did not take part in the inaugural Premier League season.",
+ "Players may only be transferred during transfer windows that are set by the Football Association. The two transfer windows run from the last day of the season to 31 August and from 31 December to 31 January. Player registrations cannot be exchanged outside these windows except under specific licence from the FA, usually on an emergency basis. As of the 2010–11 season, the Premier League introduced new rules mandating that each club must register a maximum 25-man squad of players aged over 21, with the squad list only allowed to be changed in transfer windows or in exceptional circumstances. This was to enable the 'home grown' rule to be enacted, whereby the League would also from 2010 require at least 8 of the named 25 man squad to be made up of 'home-grown players'.",
+ "After the lengthy Iraq disarmament crisis culminated with an American demand that Iraqi President Saddam Hussein leave Iraq, which was refused, a coalition led by the United States and the United Kingdom fought the Iraqi army in the 2003 invasion of Iraq. Approximately 250,000 United States troops, with support from 45,000 British, 2,000 Australian and 200 Polish combat forces, entered Iraq primarily through their staging area in Kuwait. (Turkey had refused to permit its territory to be used for an invasion from the north.) Coalition forces also supported Iraqi Kurdish militia, estimated to number upwards of 50,000. After approximately three weeks of fighting, Hussein and the Ba'ath Party were forcibly removed, followed by 9 years of military presence by the United States and the coalition fighting alongside the newly elected Iraqi government against various insurgent groups.",
+ "The continuing decline influenced further changes for season 14, including the loss of Coca-Cola as the show's major sponsor, and a decision to only broadcast one, two-hour show per week during the top 12 rounds (with results from the previous week integrated into the performance show, rather than having a separate results show). On May 11, 2015, prior to the fourteenth season finale, Fox announced that the fifteenth season of American Idol would be its last. Despite these changes, the show's ratings would decline more sharply. The fourteenth season finale was the lowest-rated finale ever, with an average of only 8.03 million viewers watching the finale.",
+ "Robots.txt is used as part of the Robots Exclusion Standard, a voluntary protocol the Internet Archive respects that disallows bots from indexing certain pages delineated by its creator as off-limits. As a result, the Internet Archive has rendered unavailable a number of web sites that now are inaccessible through the Wayback Machine. Currently, the Internet Archive applies robots.txt rules retroactively; if a site blocks the Internet Archive, such as Healthcare Advocates, any previously archived pages from the domain are rendered unavailable as well. In cases of blocked sites, only the robots.txt file is archived.",
+ "The majority of studies indicate antibiotics do interfere with contraceptive pills, such as clinical studies that suggest the failure rate of contraceptive pills caused by antibiotics is very low (about 1%). In cases where antibacterials have been suggested to affect the efficiency of birth control pills, such as for the broad-spectrum antibacterial rifampicin, these cases may be due to an increase in the activities of hepatic liver enzymes' causing increased breakdown of the pill's active ingredients. Effects on the intestinal flora, which might result in reduced absorption of estrogens in the colon, have also been suggested, but such suggestions have been inconclusive and controversial. Clinicians have recommended that extra contraceptive measures be applied during therapies using antibacterials that are suspected to interact with oral contraceptives.",
+ "Another aspect of anti-aircraft defence was the use of barrage balloons to act as physical obstacle initially to bomber aircraft over cities and later for ground attack aircraft over the Normandy invasion fleets. The balloon, a simple blimp tethered to the ground, worked in two ways. Firstly, it and the steel cable were a danger to any aircraft that tried to fly among them. Secondly, to avoid the balloons, bombers had to fly at a higher altitude, which was more favorable for the guns. Barrage balloons were limited in application, and had minimal success at bringing down aircraft, being largely immobile and passive defences.",
+ "40°48′47″N 73°57′27″W\uFEFF / \uFEFF40.813°N 73.9575°W\uFEFF / 40.813; -73.9575 La Salle Street is a street in West Harlem that runs just two blocks between Amsterdam Avenue and Claremont Avenue. West of Convent Avenue, 125th Street was re-routed onto the old Manhattan Avenue. The original 125th Street west of Convent Avenue was swallowed up to make the super-blocks where the low income housing projects now exist. La Salle Street is the only vestige of the original routing.",
+ "It is believed that Nanjing was the largest city in the world from 1358 to 1425 with a population of 487,000 in 1400. Nanjing remained the capital of the Ming Empire until 1421, when the third emperor of the Ming dynasty, the Yongle Emperor, relocated the capital to Beijing.",
+ "On 26 February 2015, the FCC ruled in favor of net neutrality by adopting Title II (common carrier) of the Communications Act of 1934 and Section 706 in the Telecommunications act of 1996 to the Internet. The FCC Chairman, Tom Wheeler, commented, \"This is no more a plan to regulate the Internet than the First Amendment is a plan to regulate free speech. They both stand for the same concept.\"",
+ "There are strict limits to how efficiently heat can be converted into work in a cyclic process, e.g. in a heat engine, as described by Carnot's theorem and the second law of thermodynamics. However, some energy transformations can be quite efficient. The direction of transformations in energy (what kind of energy is transformed to what other kind) is often determined by entropy (equal energy spread among all available degrees of freedom) considerations. In practice all energy transformations are permitted on a small scale, but certain larger transformations are not permitted because it is statistically unlikely that energy or matter will randomly move into more concentrated forms or smaller spaces.",
+ "After the American Revolutionary War, the number and proportion of free people of color increased markedly in the North and the South as slaves were freed. Most northern states abolished slavery, sometimes, like New York, in programs of gradual emancipation that took more than two decades to be completed. The last slaves in New York were not freed until 1827. In connection with the Second Great Awakening, Quaker and Methodist preachers in the South urged slaveholders to free their slaves. Revolutionary ideals led many men to free their slaves, some by deed and others by will, so that from 1782 to 1810, the percentage of free people of color rose from less than one percent to nearly 10 percent of blacks in the South.",
+ "In principle, comprehensive schools were conceived as \"neighbourhood\" schools for all students in a specified catchment area. Current education reforms with Academies Programme, Free Schools and University Technical Colleges will no doubt have some impact on the comprehensive ideal but it is too early to say to what degree.",
+ "In September 2003, China intended to join the European Galileo positioning system project and was to invest €230 million (USD296 million, GBP160 million) in Galileo over the next few years. At the time, it was believed that China's \"BeiDou\" navigation system would then only be used by its armed forces. In October 2004, China officially joined the Galileo project by signing the Agreement on the Cooperation in the Galileo Program between the \"Galileo Joint Undertaking\" (GJU) and the \"National Remote Sensing Centre of China\" (NRSCC). Based on the Sino-European Cooperation Agreement on Galileo program, China Galileo Industries (CGI), the prime contractor of the China’s involvement in Galileo programs, was founded in December 2004. By April 2006, eleven cooperation projects within the Galileo framework had been signed between China and EU. However, the Hong Kong-based South China Morning Post reported in January 2008 that China was unsatisfied with its role in the Galileo project and was to compete with Galileo in the Asian market.",
+ "Victoria's youngest son, Leopold, was affected by the blood-clotting disease haemophilia B and two of her five daughters, Alice and Beatrice, were carriers. Royal haemophiliacs descended from Victoria included her great-grandsons, Tsarevich Alexei of Russia, Alfonso, Prince of Asturias, and Infante Gonzalo of Spain. The presence of the disease in Victoria's descendants, but not in her ancestors, led to modern speculation that her true father was not the Duke of Kent but a haemophiliac. There is no documentary evidence of a haemophiliac in connection with Victoria's mother, and as male carriers always suffer the disease, even if such a man had existed he would have been seriously ill. It is more likely that the mutation arose spontaneously because Victoria's father was over 50 at the time of her conception and haemophilia arises more frequently in the children of older fathers. Spontaneous mutations account for about a third of cases.",
+ "The vast majority of devices containing LEDs are \"safe under all conditions of normal use\", and so are classified as \"Class 1 LED product\"/\"LED Klasse 1\". At present, only a few LEDs—extremely bright LEDs that also have a tightly focused viewing angle of 8° or less—could, in theory, cause temporary blindness, and so are classified as \"Class 2\". The opinion of the French Agency for Food, Environmental and Occupational Health & Safety (ANSES) of 2010, on the health issues concerning LEDs, suggested banning public use of lamps which were in the moderate Risk Group 2, especially those with a high blue component in places frequented by children. In general, laser safety regulations—and the \"Class 1\", \"Class 2\", etc. system—also apply to LEDs.",
+ "Many adaptations of the instrument have been done to cater to the special needs of Indian Carnatic music. In Indian classical music and Indian light music, the mandolin, which bears little resemblance to the European mandolin, is usually tuned E-B-E-B. As there is no concept of absolute pitch in Indian classical music, any convenient tuning maintaining these relative pitch intervals between the strings can be used. Another prevalent tuning with these intervals is C-G-C-G, which corresponds to Sa-Pa-Sa-Pa in the Indian carnatic classical music style. This tuning corresponds to the way violins are tuned for carnatic classical music. This type of mandolin is also used in Bhangra, dance music popular in Punjabi culture.",
+ "Although the city lost the status of state capital to Columbia in 1786, Charleston became even more prosperous in the plantation-dominated economy of the post-Revolutionary years. The invention of the cotton gin in 1793 revolutionized the processing of this crop, making short-staple cotton profitable. It was more easily grown in the upland areas, and cotton quickly became South Carolina's major export commodity. The Piedmont region was developed into cotton plantations, to which the sea islands and Lowcountry were already devoted. Slaves were also the primary labor force within the city, working as domestics, artisans, market workers, and laborers.",
+ "West's fourth studio album, 808s & Heartbreak (2008), marked an even more radical departure from his previous releases, largely abandoning rap and hip hop stylings in favor of a stark electropop sound composed of virtual synthesis, the Roland TR-808 drum machine, and explicitly auto-tuned vocal tracks. Drawing inspiration from artists such as Gary Numan, TJ Swan and Boy George, and maintaining a \"minimal but functional\" approach towards the album's studio production, West explored the electronic feel produced by Auto-Tune and utilized the sounds created by the 808, manipulating its pitch to produce a distorted, electronic sound; he then sought to juxtapose mechanical sounds with the traditional sounds of taiko drums and choir monks. The album's music features austere production and elements such as dense drums, lengthy strings, droning synthesizers, and somber piano, and drew comparisons to the work of 1980s post-punk and new wave groups, with West himself later confessing an affinity with British post-punk group Joy Division. Rolling Stone journalist Matthew Trammell asserted that the record was ahead of its time and wrote in a 2012 article, \"Now that popular music has finally caught up to it, 808s & Heartbreak has revealed itself to be Kanye’s most vulnerable work, and perhaps his most brilliant.\"",
+ "Secondary education in the United States did not emerge until 1910, with the rise of large corporations and advancing technology in factories, which required skilled workers. In order to meet this new job demand, high schools were created, with a curriculum focused on practical job skills that would better prepare students for white collar or skilled blue collar work. This proved beneficial for both employers and employees, since the improved human capital lowered costs for the employer, while skilled employees received a higher wages.",
+ "Comcast sold Comcast Cellular to SBC Communications in 1999 for $400 million, releasing them from $1.27 billion in debt. Comcast acquired Greater Philadelphia Cablevision in 1999. In March 1999, Comcast offered to buy MediaOne for $60 billion. However, MediaOne decided to accept AT&T Corporation's offer of $62 billion instead. Comcast University started in 1999 as well as Comcast Interactive Capital Group to make technology and Internet related investments taking its first investment in VeriSign.",
+ "The international borders of the RSFSR touched Poland on the west; Norway and Finland on the northwest; and to its southeast were the Democratic People's Republic of Korea, Mongolian People's Republic, and the People's Republic of China. Within the Soviet Union, the RSFSR bordered the Ukrainian, Belarusian, Estonian, Latvian and Lithuanian SSRs to its west and Azerbaijan, Georgian and Kazakh SSRs to the south.",
+ "In July 2009, Dell apologized after drawing the ire of the Taiwanese Consumer Protection Commission for twice refusing to honour a flood of orders against unusually low prices offered on its Taiwanese website. In the first instance, Dell offered a 19\" LCD panel for $15. In the second instance, Dell offered its Latitude E4300 notebook at NT$18,558 (US$580), 70% lower than usual price of NT$60,900 (US$1900). Concerning the E4300, rather than honour the discount taking a significant loss, the firm withdrew orders and offered a voucher of up to NT$20,000 (US$625) a customer in compensation. The consumer rights authorities in Taiwan fined Dell NT$1 million (US$31250) for customer rights infringements. Many consumers sued the firm for the unfair compensation. A court in southern Taiwan ordered the firm to deliver 18 laptops and 76 flat-panel monitors to 31 consumers for NT$490,000 (US$15,120), less than a third of the normal price. The court said the event could hardly be regarded as mistakes, as the prestigious firm said the company mispriced its products twice in Taiwanese website within 3 weeks.",
+ "Red clothing was a sign of status and wealth. It was worn not only by cardinals and princes, but also by merchants, artisans and townpeople, particularly on holidays or special occasions. Red dye for the clothing of ordinary people was made from the roots of the rubia tinctorum, the madder plant. This color leaned toward brick-red, and faded easily in the sun or during washing. The wealthy and aristocrats wore scarlet clothing dyed with kermes, or carmine, made from the carminic acid in tiny female scale insects, which lived on the leaves of oak trees in Eastern Europe and around the Mediterranean. The insects were gathered, dried, crushed, and boiled with different ingredients in a long and complicated process, which produced a brilliant scarlet.",
+ "In 2014, the city had an estimated population density of 27,858 people per square mile (10,756/km²), rendering it the most densely populated of all municipalities housing over 100,000 residents in the United States; however, several small cities (of fewer than 100,000) in adjacent Hudson County, New Jersey are more dense overall, as per the 2000 Census. Geographically co-extensive with New York County, the borough of Manhattan's population density of 71,672 people per square mile (27,673/km²) makes it the highest of any county in the United States and higher than the density of any individual American city.",
+ "In 2003 a congressional committee called the FBI's organized crime informant program \"one of the greatest failures in the history of federal law enforcement.\" The FBI allowed four innocent men to be convicted of the March 1965 gangland murder of Edward \"Teddy\" Deegan in order to protect Vincent Flemmi, an FBI informant. Three of the men were sentenced to death (which was later reduced to life in prison), and the fourth defendant was sentenced to life in prison. Two of the four men died in prison after serving almost 30 years, and two others were released after serving 32 and 36 years. In July 2007, U.S. District Judge Nancy Gertner in Boston found the bureau helped convict the four men using false witness account by mobster Joseph Barboza. The U.S. Government was ordered to pay $100 million in damages to the four defendants.",
+ "As of 2011, 235–330 million people worldwide are affected by asthma, and approximately 250,000–345,000 people die per year from the disease. Rates vary between countries with prevalences between 1 and 18%. It is more common in developed than developing countries. One thus sees lower rates in Asia, Eastern Europe and Africa. Within developed countries it is more common in those who are economically disadvantaged while in contrast in developing countries it is more common in the affluent. The reason for these differences is not well known. Low and middle income countries make up more than 80% of the mortality.",
+ "The first Armenian churches were built between the 4th and 7th century, beginning when Armenia converted to Christianity, and ending with the Arab invasion of Armenia. The early churches were mostly simple basilicas, but some with side apses. By the fifth century the typical cupola cone in the center had become widely used. By the seventh century, centrally planned churches had been built and a more complicated niched buttress and radiating Hrip'simé style had formed. By the time of the Arab invasion, most of what we now know as classical Armenian architecture had formed.",
+ "Josip Broz was born to a Croat father and Slovene mother in the village of Kumrovec, Croatia. Drafted into military service, he distinguished himself, becoming the youngest Sergeant Major in the Austro-Hungarian Army of that time. After being seriously wounded and captured by the Imperial Russians during World War I, Josip was sent to a work camp in the Ural Mountains. He participated in the October Revolution, and later joined a Red Guard unit in Omsk. Upon his return home, Broz found himself in the newly established Kingdom of Yugoslavia, where he joined the Communist Party of Yugoslavia (KPJ).",
+ "The names for the nation of Greece and the Greek people differ from the names used in other languages, locations and cultures. Although the Greeks call the country Hellas or Ellada (Greek: Ἑλλάς or Ελλάδα) and its official name is the Hellenic Republic, in English it is referred to as Greece, which comes from the Latin term Graecia as used by the Romans, which literally means 'the land of the Greeks', and derives from the Greek name Γραικός. However, the name Hellas is sometimes used in English as well.",
+ "A new device for granting assent was created during the reign of King Henry VIII. In 1542, Henry sought to execute his fifth wife, Catherine Howard, whom he accused of committing adultery; the execution was to be authorised not after a trial but by a bill of attainder, to which he would have to personally assent after listening to the entire text. Henry decided that \"the repetition of so grievous a Story and the recital of so infamous a crime\" in his presence \"might reopen a Wound already closing in the Royal Bosom\". Therefore, parliament inserted a clause into the Act of Attainder, providing that assent granted by Commissioners \"is and ever was and ever shall be, as good\" as assent granted by the sovereign personally. The procedure was used only five times during the 16th century, but more often during the 17th and 18th centuries, especially when George III's health began to deteriorate. Queen Victoria became the last monarch to personally grant assent in 1854.",
+ "Queen's popularity was stimulated in North America when \"Bohemian Rhapsody\" was featured in the 1992 comedy film Wayne's World. Its inclusion helped the song reach number two on the Billboard Hot 100 for five weeks in 1992 (it remained in the Hot 100 for over 40 weeks), and won the band an MTV Award at the 1992 MTV Video Music Awards. The compilation album Classic Queen also reached number four on the Billboard 200, and is certified three times platinum in the US. Wayne's World footage was used to make a new music video for \"Bohemian Rhapsody\", with which the band and management were delighted.",
+ "The theories developed in the 1930s and 1940s to integrate molecular genetics with Darwinian evolution are called the modern evolutionary synthesis, a term introduced by Julian Huxley. Evolutionary biologists subsequently refined this concept, such as George C. Williams' gene-centric view of evolution. He proposed an evolutionary concept of the gene as a unit of natural selection with the definition: \"that which segregates and recombines with appreciable frequency.\":24 In this view, the molecular gene transcribes as a unit, and the evolutionary gene inherits as a unit. Related ideas emphasizing the centrality of genes in evolution were popularized by Richard Dawkins.",
+ "A number of studies have reported associations between pathogen load in an area and human behavior. Higher pathogen load is associated with decreased size of ethnic and religious groups in an area. This may be due high pathogen load favoring avoidance of other groups, which may reduce pathogen transmission, or a high pathogen load preventing the creation of large settlements and armies that enforce a common culture. Higher pathogen load is also associated with more restricted sexual behavior, which may reduce pathogen transmission. It also associated with higher preferences for health and attractiveness in mates. Higher fertility rates and shorter or less parental care per child is another association that may be a compensation for the higher mortality rate. There is also an association with polygyny which may be due to higher pathogen load, making selecting males with a high genetic resistance increasingly important. Higher pathogen load is also associated with more collectivism and less individualism, which may limit contacts with outside groups and infections. There are alternative explanations for at least some of the associations although some of these explanations may in turn ultimately be due to pathogen load. Thus, polygny may also be due to a lower male:female ratio in these areas but this may ultimately be due to male infants having increased mortality from infectious diseases. Another example is that poor socioeconomic factors may ultimately in part be due to high pathogen load preventing economic development.",
+ "While on tour Madonna participated in the Raising Malawi initiative by partially funding an orphanage in and traveling to that country. While there, she decided to adopt a boy named David Banda in October 2006. The adoption raised strong public reaction, because Malawian law requires would-be parents to reside in Malawi for one year before adopting, which Madonna did not do. She addressed this on The Oprah Winfrey Show, saying that there were no written adoption laws in Malawi that regulated foreign adoption. She described how Banda had been suffering from pneumonia after surviving malaria and tuberculosis when she first met him. Banda's biological father, Yohane, commented, \"These so-called human rights activists are harassing me every day, threatening me that I am not aware of what I am doing..... They want me to support their court case, a thing I cannot do for I know what I agreed with Madonna and her husband.\" The adoption was finalized in May 2008.",
+ ...]
 ```
 
 ## Tokenizer
 
-We use [ku-nlp/deberta-v2-base-japanese](https://huggingface.co/ku-nlp/deberta-v2-base-japanese) for a tokenizer and a linguistic model for embedding.
-
-Since Bumblebee currently doesn't support DeBERTa, we use `Bumblebee.Text.BartTokenizer` as a related module instead. It's hackish, though.
-
 ```elixir
-{:ok, tokenizer} =
-  Bumblebee.load_tokenizer(
-    {:hf, "ku-nlp/deberta-v2-base-japanese"},
-    module: Bumblebee.Text.BartTokenizer
-  )
+{:ok, tokenizer} = Bumblebee.load_tokenizer({:hf, "bert-base-uncased"})
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+|=============================================================| 100% (466.06 KB)
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
 {:ok,
- %Bumblebee.Text.BartTokenizer{
+ %Bumblebee.Text.BertTokenizer{
    tokenizer: #Tokenizers.Tokenizer<[
-     vocab_size: 32000,
-     min_score: -21.820940017700195,
-     model_type: "bpe"
+     vocab_size: 30522,
+     continuing_subword_prefix: "##",
+     max_input_chars_per_word: 100,
+     model_type: "bpe",
+     unk_token: "[UNK]"
    ]>,
-   special_tokens: %{
-     bos: "[CLS]",
-     cls: "[CLS]",
-     eos: "[SEP]",
-     mask: "[MASK]",
-     pad: "[PAD]",
-     sep: "[SEP]",
-     unk: "[UNK]"
-   }
+   special_tokens: %{cls: "[CLS]", mask: "[MASK]", pad: "[PAD]", sep: "[SEP]", unk: "[UNK]"}
  }}
 ```
 
 ```elixir
-inputs = Bumblebee.apply_tokenizer(tokenizer, preprocessed)
+inputs = Bumblebee.apply_tokenizer(tokenizer, dataset)
 ```
 
 <!-- livebook:{"output":true} -->
@@ -243,24 +130,24 @@ inputs = Bumblebee.apply_tokenizer(tokenizer, preprocessed)
 ```
 %{
   "attention_mask" => #Nx.Tensor<
-    u32[50][266]
-    EXLA.Backend<host:0, 0.2360421930.1766457364.107712>
+    u32[100][484]
+    EXLA.Backend<host:0, 0.2215748881.973471764.6424>
     [
       [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...],
       ...
     ]
   >,
   "input_ids" => #Nx.Tensor<
-    u32[50][266]
-    EXLA.Backend<host:0, 0.2360421930.1766457364.107711>
+    u32[100][484]
+    EXLA.Backend<host:0, 0.2215748881.973471764.6423>
     [
-      [1, 16526, 456, 266, 261, 3129, 2996, 1141, 265, 1776, 268, 275, 261, 6516, 1588, 273, 762, 15250, 1588, 271, 285, 3979, 286, 261, 1045, 273, 23257, 262, 271, 10655, 1133, 265, 7854, 268, 279, 5746, 2294, 2738, 1087, 265, 3990, 263, 327, 2477, 269, 266, 6516, 1588, ...],
+      [101, 2116, 9728, 10295, 2200, 7591, 1998, 1010, 2030, 7772, 11595, 1997, 10617, 1012, 2070, 9728, 2107, 2004, 13734, 2064, 23084, 26299, 29263, 1010, 2030, 11487, 11508, 3550, 2422, 1010, 2096, 1996, 28624, 1997, 3287, 14885, 2064, 11487, 1996, 6887, 10624, 8202, 2229, 1997, 2931, 14885, 2058, 12103, ...],
       ...
     ]
   >,
   "token_type_ids" => #Nx.Tensor<
-    u32[50][266]
-    EXLA.Backend<host:0, 0.2360421930.1766457364.107713>
+    u32[100][484]
+    EXLA.Backend<host:0, 0.2215748881.973471764.6425>
     [
       [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...],
       ...
@@ -273,361 +160,675 @@ inputs = Bumblebee.apply_tokenizer(tokenizer, preprocessed)
 
 ```elixir
 {:ok, %{model: model, params: params, spec: spec}} =
-  Bumblebee.load_model(
-    {:hf, "ku-nlp/deberta-v2-base-japanese"},
-    module: Bumblebee.Text.Bart
-  )
-
-IO.puts("suppress the long long output...")
+  Bumblebee.load_model({:hf, "bert-base-uncased"}, architecture: :base)
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-suppress the long long output...
-
-13:50:52.213 [debug] the following parameters were missing:
-
-  * decoder.blocks.1.cross_attention.output.kernel
-  * decoder.blocks.1.cross_attention.output.bias
-  * decoder.blocks.6.cross_attention.value.kernel
-  * decoder.blocks.6.cross_attention.value.bias
-  * encoder.blocks.5.self_attention.output.kernel
-  * encoder.blocks.5.self_attention.output.bias
-  * encoder.blocks.9.self_attention.output.kernel
-  * encoder.blocks.9.self_attention.output.bias
-  * decoder.blocks.10.self_attention.query.kernel
-  * decoder.blocks.10.self_attention.query.bias
-  * encoder.blocks.11.self_attention.output.kernel
-  * encoder.blocks.11.self_attention.output.bias
-  * decoder_embedder.token_embedding.kernel
-  * encoder.blocks.3.output_norm.gamma
-  * encoder.blocks.3.output_norm.beta
-  * decoder.blocks.1.self_attention_norm.gamma
-  * decoder.blocks.1.self_attention_norm.beta
-  * encoder.blocks.7.output_norm.gamma
-  * encoder.blocks.7.output_norm.beta
-  * encoder.blocks.7.self_attention.query.kernel
-  * encoder.blocks.7.self_attention.query.bias
-  * decoder.blocks.5.cross_attention.query.kernel
-  * decoder.blocks.5.cross_attention.query.bias
-  * decoder.blocks.4.cross_attention.output.kernel
-  * decoder.blocks.4.cross_attention.output.bias
-  * decoder.blocks.5.cross_attention.value.kernel
-  * decoder.blocks.5.cross_attention.value.bias
-  * decoder.blocks.2.self_attention.key.kernel
-  * decoder.blocks.2.self_attention.key.bias
-  * decoder.blocks.6.ffn.intermediate.kernel
-  * decoder.blocks.6.ffn.intermediate.bias
-  * decoder.blocks.3.cross_attention_norm.gamma
-  * decoder.blocks.3.cross_attention_norm.beta
-  * encoder.blocks.0.ffn.intermediate.kernel
-  * encoder.blocks.0.ffn.intermediate.bias
-  * decoder.blocks.9.cross_attention_norm.gamma
-  * decoder.blocks.9.cross_attention_norm.beta
-  * decoder.blocks.3.cross_attention.output.kernel
-  * decoder.blocks.3.cross_attention.output.bias
-  * encoder.blocks.11.output_norm.gamma
-  * encoder.blocks.11.output_norm.beta
-  * encoder.blocks.0.self_attention.key.kernel
-  * encoder.blocks.0.self_attention.key.bias
-  * decoder.blocks.9.ffn.intermediate.kernel
-  * decoder.blocks.9.ffn.intermediate.bias
-  * decoder.blocks.5.ffn.intermediate.kernel
-  * decoder.blocks.5.ffn.intermediate.bias
-  * encoder.blocks.8.self_attention.key.kernel
-  * encoder.blocks.8.self_attention.key.bias
-  * encoder.blocks.11.self_attention.key.kernel
-  * encoder.blocks.11.self_attention.key.bias
-  * decoder.blocks.11.cross_attention.query.kernel
-  * decoder.blocks.11.cross_attention.query.bias
-  * decoder.blocks.4.ffn.intermediate.kernel
-  * decoder.blocks.4.ffn.intermediate.bias
-  * decoder.blocks.0.self_attention.key.kernel
-  * decoder.blocks.0.self_attention.key.bias
-  * encoder.blocks.7.ffn.intermediate.kernel
-  * encoder.blocks.7.ffn.intermediate.bias
-  * decoder.blocks.0.self_attention.value.kernel
-  * decoder.blocks.0.self_attention.value.bias
-  * encoder.blocks.1.self_attention.key.kernel
-  * encoder.blocks.1.self_attention.key.bias
-  * encoder.blocks.0.self_attention.value.kernel
-  * encoder.blocks.0.self_attention.value.bias
-  * encoder.blocks.2.self_attention.query.kernel
-  * encoder.blocks.2.self_attention.query.bias
-  * encoder.blocks.11.ffn.output.kernel
-  * encoder.blocks.11.ffn.output.bias
-  * decoder.blocks.5.self_attention.output.kernel
-  * decoder.blocks.5.self_attention.output.bias
-  * decoder.blocks.10.cross_attention.output.kernel
-  * decoder.blocks.10.cross_attention.output.bias
-  * decoder.blocks.0.cross_attention.value.kernel
-  * decoder.blocks.0.cross_attention.value.bias
-  * decoder.blocks.1.ffn.intermediate.kernel
-  * decoder.blocks.1.ffn.intermediate.bias
-  * decoder.blocks.9.cross_attention.value.kernel
-  * decoder.blocks.9.cross_attention.value.bias
-  * encoder.blocks.0.self_attention.query.kernel
-  * encoder.blocks.0.self_attention.query.bias
-  * encoder.blocks.7.self_attention_norm.gamma
-  * encoder.blocks.7.self_attention_norm.beta
-  * encoder.blocks.5.ffn.intermediate.kernel
-  * encoder.blocks.5.ffn.intermediate.bias
-  * decoder_embedder.position_embedding.kernel
-  * decoder.blocks.5.cross_attention_norm.gamma
-  * decoder.blocks.5.cross_attention_norm.beta
-  * decoder.blocks.6.cross_attention.query.kernel
-  * decoder.blocks.6.cross_attention.query.bias
-  * decoder.blocks.11.self_attention.key.kernel
-  * decoder.blocks.11.self_attention.key.bias
-  * decoder.blocks.9.output_norm.gamma
-  * decoder.blocks.9.output_norm.beta
-  * decoder.blocks.6.self_attention.query.kernel
-  * decoder.blocks.6.self_attention.query.bias
-  * decoder.blocks.6.self_attention_norm.gamma
-  * decoder.blocks.6.self_attention_norm.beta
-  * encoder.blocks.9.ffn.intermediate.kernel
-  * encoder.blocks.9.ffn.intermediate.bias
-  * decoder.blocks.8.cross_attention.query.kernel
-  * decoder.blocks.8.cross_attention.query.bias
-  * decoder.blocks.9.self_attention.query.kernel
-  * decoder.blocks.9.self_attention.query.bias
-  * encoder.blocks.3.self_attention_norm.gamma
-  * encoder.blocks.3.self_attention_norm.beta
-  * decoder.blocks.10.cross_attention.query.kernel
-  * decoder.blocks.10.cross_attention.query.bias
-  * decoder.blocks.4.output_norm.gamma
-  * decoder.blocks.4.output_norm.beta
-  * decoder.blocks.0.self_attention.output.kernel
-  * decoder.blocks.0.self_attention.output.bias
-  * decoder.blocks.1.cross_attention.value.kernel
-  * decoder.blocks.1.cross_attention.value.bias
-  * decoder.blocks.10.cross_attention.key.kernel
-  * decoder.blocks.10.cross_attention.key.bias
-  * encoder.blocks.5.ffn.output.kernel
-  * encoder.blocks.5.ffn.output.bias
-  * decoder.blocks.2.self_attention.query.kernel
-  * decoder.blocks.2.self_attention.query.bias
-  * decoder.blocks.3.output_norm.gamma
-  * decoder.blocks.3.output_norm.beta
-  * decoder.blocks.4.self_attention_norm.gamma
-  * decoder.blocks.4.self_attention_norm.beta
-  * encoder.blocks.5.self_attention.value.kernel
-  * encoder.blocks.5.self_attention.value.bias
-  * decoder.blocks.3.self_attention.query.kernel
-  * decoder.blocks.3.self_attention.query.bias
-  * encoder.blocks.8.ffn.intermediate.kernel
-  * encoder.blocks.8.ffn.intermediate.bias
-  * encoder.blocks.0.ffn.output.kernel
-  * encoder.blocks.0.ffn.output.bias
-  * encoder.blocks.1.self_attention.query.kernel
-  * encoder.blocks.1.self_attention.query.bias
-  * encoder.blocks.1.ffn.intermediate.kernel
-  * encoder.blocks.1.ffn.intermediate.bias
-  * decoder.blocks.0.cross_attention.output.kernel
-  * decoder.blocks.0.cross_attention.output.bias
-  * encoder.blocks.2.self_attention_norm.gamma
-  * encoder.blocks.2.self_attention_norm.beta
-  * decoder.blocks.9.self_attention.value.kernel
-  * decoder.blocks.9.self_attention.value.bias
-  * decoder.blocks.6.cross_attention_norm.gamma
-  * decoder.blocks.6.cross_attention_norm.beta
-  * decoder.blocks.7.cross_attention.output.kernel
-  * decoder.blocks.7.cross_attention.output.bias
-  * encoder.blocks.11.self_attention_norm.gamma
-  * encoder.blocks.11.self_attention_norm.beta
-  * decoder.blocks.9.self_attention.output.kernel
-  * decoder.blocks.9.self_attention.output.bias
-  * decoder.blocks.8.self_attention.key.kernel
-  * decoder.blocks.8.self_attention.key.bias
-  * decoder.blocks.1.self_attention.value.kernel
-  * decoder.blocks.1.self_attention.value.bias
-  * decoder.blocks.2.cross_attention.output.kernel
-  * decoder.blocks.2.cross_attention.output.bias
-  * decoder.blocks.2.self_attention_norm.gamma
-  * decoder.blocks.2.self_attention_norm.beta
-  * encoder.blocks.0.output_norm.gamma
-  * encoder.blocks.0.output_norm.beta
-  * decoder.blocks.3.self_attention_norm.gamma
-  * decoder.blocks.3.self_attention_norm.beta
-  * encoder.blocks.4.ffn.intermediate.kernel
-  * encoder.blocks.4.ffn.intermediate.bias
-  * decoder.blocks.10.cross_attention.value.kernel
-  * decoder.blocks.10.cross_attention.value.bias
-  * decoder.blocks.2.ffn.output.kernel
-  * decoder.blocks.2.ffn.output.bias
-  * decoder.blocks.11.self_attention.value.kernel
-  * decoder.blocks.11.self_attention.value.bias
-  * encoder.blocks.5.self_attention.query.kernel
-  * encoder.blocks.5.self_attention.query.bias
-  * decoder.blocks.11.output_norm.gamma
-  * decoder.blocks.11.output_norm.beta
-  * decoder. (truncated)
-
+|=============================================================| 100% (440.47 MB)
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-:ok
-```
-
-<!-- livebook:{"output":true} -->
-
-```
-
-13:50:52.213 [debug] the following PyTorch parameters were unused:
-
-  * cls.predictions.bias
-  * cls.predictions.decoder.bias
-  * cls.predictions.decoder.weight
-  * cls.predictions.transform.LayerNorm.bias
-  * cls.predictions.transform.LayerNorm.weight
-  * cls.predictions.transform.dense.bias
-  * cls.predictions.transform.dense.weight
-  * deberta.embeddings.LayerNorm.bias
-  * deberta.embeddings.LayerNorm.weight
-  * deberta.embeddings.position_ids
-  * deberta.embeddings.word_embeddings.weight
-  * deberta.encoder.LayerNorm.bias
-  * deberta.encoder.LayerNorm.weight
-  * deberta.encoder.conv.LayerNorm.bias
-  * deberta.encoder.conv.LayerNorm.weight
-  * deberta.encoder.conv.conv.bias
-  * deberta.encoder.conv.conv.weight
-  * deberta.encoder.layer.0.attention.output.LayerNorm.bias
-  * deberta.encoder.layer.0.attention.output.LayerNorm.weight
-  * deberta.encoder.layer.0.attention.output.dense.bias
-  * deberta.encoder.layer.0.attention.output.dense.weight
-  * deberta.encoder.layer.0.attention.self.key_proj.bias
-  * deberta.encoder.layer.0.attention.self.key_proj.weight
-  * deberta.encoder.layer.0.attention.self.query_proj.bias
-  * deberta.encoder.layer.0.attention.self.query_proj.weight
-  * deberta.encoder.layer.0.attention.self.value_proj.bias
-  * deberta.encoder.layer.0.attention.self.value_proj.weight
-  * deberta.encoder.layer.0.intermediate.dense.bias
-  * deberta.encoder.layer.0.intermediate.dense.weight
-  * deberta.encoder.layer.0.output.LayerNorm.bias
-  * deberta.encoder.layer.0.output.LayerNorm.weight
-  * deberta.encoder.layer.0.output.dense.bias
-  * deberta.encoder.layer.0.output.dense.weight
-  * deberta.encoder.layer.1.attention.output.LayerNorm.bias
-  * deberta.encoder.layer.1.attention.output.LayerNorm.weight
-  * deberta.encoder.layer.1.attention.output.dense.bias
-  * deberta.encoder.layer.1.attention.output.dense.weight
-  * deberta.encoder.layer.1.attention.self.key_proj.bias
-  * deberta.encoder.layer.1.attention.self.key_proj.weight
-  * deberta.encoder.layer.1.attention.self.query_proj.bias
-  * deberta.encoder.layer.1.attention.self.query_proj.weight
-  * deberta.encoder.layer.1.attention.self.value_proj.bias
-  * deberta.encoder.layer.1.attention.self.value_proj.weight
-  * deberta.encoder.layer.1.intermediate.dense.bias
-  * deberta.encoder.layer.1.intermediate.dense.weight
-  * deberta.encoder.layer.1.output.LayerNorm.bias
-  * deberta.encoder.layer.1.output.LayerNorm.weight
-  * deberta.encoder.layer.1.output.dense.bias
-  * deberta.encoder.layer.1.output.dense.weight
-  * deberta.encoder.layer.10.attention.output.LayerNorm.bias
-  * deberta.encoder.layer.10.attention.output.LayerNorm.weight
-  * deberta.encoder.layer.10.attention.output.dense.bias
-  * deberta.encoder.layer.10.attention.output.dense.weight
-  * deberta.encoder.layer.10.attention.self.key_proj.bias
-  * deberta.encoder.layer.10.attention.self.key_proj.weight
-  * deberta.encoder.layer.10.attention.self.query_proj.bias
-  * deberta.encoder.layer.10.attention.self.query_proj.weight
-  * deberta.encoder.layer.10.attention.self.value_proj.bias
-  * deberta.encoder.layer.10.attention.self.value_proj.weight
-  * deberta.encoder.layer.10.intermediate.dense.bias
-  * deberta.encoder.layer.10.intermediate.dense.weight
-  * deberta.encoder.layer.10.output.LayerNorm.bias
-  * deberta.encoder.layer.10.output.LayerNorm.weight
-  * deberta.encoder.layer.10.output.dense.bias
-  * deberta.encoder.layer.10.output.dense.weight
-  * deberta.encoder.layer.11.attention.output.LayerNorm.bias
-  * deberta.encoder.layer.11.attention.output.LayerNorm.weight
-  * deberta.encoder.layer.11.attention.output.dense.bias
-  * deberta.encoder.layer.11.attention.output.dense.weight
-  * deberta.encoder.layer.11.attention.self.key_proj.bias
-  * deberta.encoder.layer.11.attention.self.key_proj.weight
-  * deberta.encoder.layer.11.attention.self.query_proj.bias
-  * deberta.encoder.layer.11.attention.self.query_proj.weight
-  * deberta.encoder.layer.11.attention.self.value_proj.bias
-  * deberta.encoder.layer.11.attention.self.value_proj.weight
-  * deberta.encoder.layer.11.intermediate.dense.bias
-  * deberta.encoder.layer.11.intermediate.dense.weight
-  * deberta.encoder.layer.11.output.LayerNorm.bias
-  * deberta.encoder.layer.11.output.LayerNorm.weight
-  * deberta.encoder.layer.11.output.dense.bias
-  * deberta.encoder.layer.11.output.dense.weight
-  * deberta.encoder.layer.2.attention.output.LayerNorm.bias
-  * deberta.encoder.layer.2.attention.output.LayerNorm.weight
-  * deberta.encoder.layer.2.attention.output.dense.bias
-  * deberta.encoder.layer.2.attention.output.dense.weight
-  * deberta.encoder.layer.2.attention.self.key_proj.bias
-  * deberta.encoder.layer.2.attention.self.key_proj.weight
-  * deberta.encoder.layer.2.attention.self.query_proj.bias
-  * deberta.encoder.layer.2.attention.self.query_proj.weight
-  * deberta.encoder.layer.2.attention.self.value_proj.bias
-  * deberta.encoder.layer.2.attention.self.value_proj.weight
-  * deberta.encoder.layer.2.intermediate.dense.bias
-  * deberta.encoder.layer.2.intermediate.dense.weight
-  * deberta.encoder.layer.2.output.LayerNorm.bias
-  * deberta.encoder.layer.2.output.LayerNorm.weight
-  * deberta.encoder.layer.2.output.dense.bias
-  * deberta.encoder.layer.2.output.dense.weight
-  * deberta.encoder.layer.3.attention.output.LayerNorm.bias
-  * deberta.encoder.layer.3.attention.output.LayerNorm.weight
-  * deberta.encoder.layer.3.attention.output.dense.bias
-  * deberta.encoder.layer.3.attention.output.dense.weight
-  * deberta.encoder.layer.3.attention.self.key_proj.bias
-  * deberta.encoder.layer.3.attention.self.key_proj.weight
-  * deberta.encoder.layer.3.attention.self.query_proj.bias
-  * deberta.encoder.layer.3.attention.self.query_proj.weight
-  * deberta.encoder.layer.3.attention.self.value_proj.bias
-  * deberta.encoder.layer.3.attention.self.value_proj.weight
-  * deberta.encoder.layer.3.intermediate.dense.bias
-  * deberta.encoder.layer.3.intermediate.dense.weight
-  * deberta.encoder.layer.3.output.LayerNorm.bias
-  * deberta.encoder.layer.3.output.LayerNorm.weight
-  * deberta.encoder.layer.3.output.dense.bias
-  * deberta.encoder.layer.3.output.dense.weight
-  * deberta.encoder.layer.4.attention.output.LayerNorm.bias
-  * deberta.encoder.layer.4.attention.output.LayerNorm.weight
-  * deberta.encoder.layer.4.attention.output.dense.bias
-  * deberta.encoder.layer.4.attention.output.dense.weight
-  * deberta.encoder.layer.4.attention.self.key_proj.bias
-  * deberta.encoder.layer.4.attention.self.key_proj.weight
-  * deberta.encoder.layer.4.attention.self.query_proj.bias
-  * deberta.encoder.layer.4.attention.self.query_proj.weight
-  * deberta.encoder.layer.4.attention.self.value_proj.bias
-  * deberta.encoder.layer.4.attention.self.value_proj.weight
-  * deberta.encoder.layer.4.intermediate.dense.bias
-  * deberta.encoder.layer.4.intermediate.dense.weight
-  * deberta.encoder.layer.4.output.LayerNorm.bias
-  * deberta.encoder.layer.4.output.LayerNorm.weight
-  * deberta.encoder.layer.4.output.dense.bias
-  * deberta.encoder.layer.4.output.dense.weight
-  * deberta.encoder.layer.5.attention.output.LayerNorm.bias
-  * deberta.encoder.layer.5.attention.output.LayerNorm.weight
-  * deberta.encoder.layer.5.attention.output.dense.bias
-  * deberta.encoder.layer.5.attention.output.dense.weight
-  * deberta.encoder.layer.5.attention.self.key_proj.bias
-  * deberta.encoder.layer.5.attention.self.key_proj.weight
-  * deberta.encoder.layer.5.attention.self.query_proj.bias
-  * deberta.encoder.layer.5.attention.self.query_proj.weight
-  * deberta.encoder.layer.5.attention.self.value_proj.bias
-  * deberta.encoder.layer.5.attention.self.value_proj.weight
-  * deberta.encoder.layer.5.intermediate.dense.bias
-  * deberta.encoder.layer.5.intermediate.dense.weight
-  * deberta.encoder.layer.5.output.LayerNorm.bias
-  * deberta.encoder.layer.5.output.LayerNorm.weight
-  * deberta.encoder.layer.5.output.dense.bias
-  * deberta.encoder.layer.5.output.dense.weight
-  * deberta.encoder.layer.6.attention.output.LayerNorm.bias
-  * deberta.encoder.layer.6.attention.output.LayerNorm.weight
-  * deberta.encoder.layer.6.attention.output.dense.bias
-  * deberta.encoder.layer.6.atte (truncated)
-
+{:ok,
+ %{
+   model: #Axon<
+     inputs: %{"attention_head_mask" => {12, 12}, "attention_mask" => {nil, nil}, "input_ids" => {nil, nil}, "position_ids" => {nil, nil}, "token_type_ids" => {nil, nil}}
+     outputs: "container_37"
+     nodes: 827
+   >,
+   params: %{
+     "encoder.blocks.7.self_attention.key" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.840>
+         [-7.491798023693264e-4, 0.007310790009796619, 8.933841600082815e-4, 0.0034565243404358625, 4.3816701509058475e-4, 0.011412935331463814, -0.005796641577035189, 0.006730612367391586, -0.0016049828846007586, -0.0018184048822149634, -6.449000793509185e-4, -0.0031762300059199333, 0.012245562858879566, 0.00548790255561471, -0.003407113254070282, -0.002375737763941288, 0.0028850268572568893, 0.0012108630035072565, 0.008373654447495937, 0.017901815474033356, -0.005083224270492792, 0.002102192956954241, 5.791938747279346e-4, -9.45611740462482e-4, -0.0020738260354846716, 0.00311382208019495, 0.002771311905235052, -0.010545221157371998, 0.003691270248964429, 0.002506909891963005, 0.012270018458366394, 0.00958447065204382, 0.013372928835451603, -0.0066456785425543785, -2.3348814283963293e-4, -0.00288184080272913, -0.008013161830604076, -0.005560026969760656, -0.006571796722710133, 0.0072619738057255745, 8.064221474342048e-4, -0.006001456640660763, 0.004218083806335926, -0.0035353561397641897, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6600>
+         [
+           [0.027819273993372917, -0.0090697156265378, 0.0212198868393898, 0.029859095811843872, 0.058547861874103546, 0.050966911017894745, 0.07417261600494385, -0.024168705567717552, -0.05264366418123245, 0.016366813331842422, -0.05406862497329712, 0.02490830048918724, -0.020492175593972206, -8.863421389833093e-4, -0.08432649821043015, 0.005341216456145048, -0.0378967821598053, -0.03987865149974823, -0.018334096297621727, -0.009841013699769974, 0.05063112825155258, -0.005587855353951454, 0.026311082765460014, -0.04626672342419624, 0.028157811611890793, -0.007698668632656336, -0.03914564102888107, 0.07855331152677536, -0.06637347489595413, -0.03603928163647652, 0.038554295897483826, -0.007087863981723785, 0.015166299417614937, 0.0380253866314888, -0.023091599345207214, 0.02784922532737255, 0.02040737308561802, -0.021539820358157158, -0.013311375863850117, 0.002913782140240073, 0.032342687249183655, -0.054234713315963745, 0.06951513141393661, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.0.self_attention_norm" => %{
+       "beta" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.946>
+         [0.25779154896736145, -0.030778534710407257, -0.2772696912288666, -0.38847702741622925, 0.3684176504611969, -0.4647163152694702, 0.5185073614120483, 0.19573929905891418, 0.008718670345842838, 0.0031131254509091377, 0.0559113584458828, 0.2408226579427719, -0.5156096816062927, 0.6201786994934082, 0.14133456349372864, -0.16916561126708984, -0.41994962096214294, -0.41823455691337585, 0.09131023287773132, 0.6074813604354858, 0.30193936824798584, -0.505509614944458, 0.35330677032470703, 0.28206244111061096, -0.380615770816803, 0.2625277042388916, 0.34850749373435974, -0.225270077586174, -0.23179489374160767, 0.0499097965657711, -0.13719315826892853, -0.013107801787555218, 0.37722015380859375, -0.2344384491443634, 0.11978691071271896, -0.24451696872711182, -0.16822652518749237, 0.10539544373750687, 0.21502339839935303, -0.45368102192878723, -0.1253749579191208, -0.3539743721485138, -0.09329339861869812, ...]
+       >,
+       "gamma" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.947>
+         [0.9803407788276672, 0.9599689841270447, 0.9636898636817932, 0.9603652954101562, 0.9801324009895325, 0.9852302074432373, 0.9647495150566101, 0.9731580018997192, 0.9503733515739441, 0.9454536437988281, 0.9435741901397705, 0.9255040287971497, 0.9688257575035095, 1.0136568546295166, 0.969551682472229, 0.9469797015190125, 0.9540795087814331, 0.9688431024551392, 0.9606719017028809, 1.0128518342971802, 0.9547123312950134, 0.9994195699691772, 0.9588897228240967, 0.9626436829566956, 0.9610609412193298, 0.9477201104164124, 0.9662427306175232, 0.9718752503395081, 0.9322214722633362, 0.9334564805030823, 0.9368600845336914, 0.9527709484100342, 0.976971447467804, 0.975570023059845, 0.9896538257598877, 0.98190838098526, 0.9536049962043762, 0.959016740322113, 0.9786738157272339, 0.9737755060195923, 0.9537503123283386, 0.9586827754974365, ...]
+       >
+     },
+     "encoder.blocks.4.self_attention.key" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.888>
+         [-0.005887248553335667, -0.0023518516682088375, 0.002811310114338994, 0.0017308775568380952, -0.005466529633849859, -0.0017615958349779248, -0.004444629419595003, -0.003829239634796977, -0.002187349135056138, 0.00746099604293704, 0.00437965290620923, 0.0013199648819863796, -0.003584150690585375, 0.0017545185983181, -0.006323052570223808, -0.004509628284722567, 0.006803286261856556, 0.006404836196452379, -0.005177000537514687, 0.004064891487360001, 4.959977231919765e-4, 0.002071189461275935, 0.0032132563646882772, 5.476275691762567e-4, -0.004751077853143215, -7.09660118445754e-4, 4.2516723624430597e-4, -0.007938302122056484, 0.001212036469951272, -0.003315533045679331, 0.0029555214568972588, 0.002071742434054613, 0.0013963582459837198, 0.005035054869949818, -0.0031225604470819235, -0.00437557976692915, 6.547720404341817e-4, 7.811469840817153e-4, -0.005820052698254585, -0.001964034279808402, -0.0019159140065312386, 0.00291583314538002, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6634>
+         [
+           [0.06941642612218857, 0.08133814483880997, -0.045399200171232224, 0.06687150150537491, -0.060148466378450394, 0.03221932053565979, -0.016605617478489876, 0.008865568786859512, 0.0590108260512352, 0.01130680926144123, 0.06458780914545059, 0.0033310982398688793, 0.013932822272181511, -0.06483372300863266, -0.010122735053300858, 0.015486221760511398, -0.010523781180381775, 0.07016611099243164, -0.012791797518730164, -0.020448625087738037, 0.003203399246558547, -0.053499870002269745, 0.06099306792020798, 0.013620776124298573, 0.020689707249403, -0.0028885873034596443, 0.031035885214805603, 0.029734771698713303, 0.00685930997133255, -0.004040392581373453, 0.021270230412483215, 0.0654199942946434, -0.01395433209836483, 0.007852817885577679, 0.08235776424407959, -0.028464891016483307, 0.0064975121058523655, -0.011991705745458603, -0.007187552750110626, 0.022958219051361084, 0.03521270304918289, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.4.self_attention.query" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.890>
+         [0.07045844197273254, -0.13412629067897797, -0.051414597779512405, 6.132881389930844e-4, 0.12485189735889435, -0.023160381242632866, 9.216212201863527e-4, -0.005261218175292015, -0.07978364825248718, -0.22057415544986725, -0.07414562255144119, 0.1024739146232605, 0.09763393551111221, -0.15478171408176422, -0.0408344529569149, 0.03715594857931137, -0.06866558641195297, -0.0613112673163414, 0.11433639377355576, -0.03340580686926842, 0.11337629705667496, -0.1723664551973343, 0.1035810112953186, 0.018742237240076065, 0.041806403547525406, -0.1542748510837555, 0.014638478867709637, -0.001628880389034748, -0.03638694807887077, 0.08182194083929062, -0.05640195682644844, -0.23177528381347656, -0.044397275894880295, -0.07975348085165024, 0.11407987773418427, 0.11806060373783112, -0.0014331425772979856, -0.024632243439555168, 0.05399344861507416, 0.016443122178316116, -0.06957590579986572, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6623>
+         [
+           [0.08296381682157516, 0.02076941356062889, 0.06525186449289322, -0.026597289368510246, 0.03491377457976341, 0.013453942723572254, -0.03359789773821831, 0.018534669652581215, -0.025149518623948097, 0.026978570967912674, 0.06930982321500778, 0.03738383948802948, -0.01736619509756565, -0.014352603815495968, -0.009876892901957035, 0.023226110264658928, -0.027208684012293816, -0.008196230977773666, 0.005800875835120678, 0.04051652550697327, 0.05900668352842331, 0.030852070078253746, 0.04052455723285675, 0.011311652138829231, -0.0064574480056762695, -0.0014447481371462345, -7.074858876876533e-4, -0.018502969294786453, -0.02202560007572174, -0.04365447536110878, 0.017623748630285263, 0.02103455550968647, -0.02264809049665928, 0.07095739990472794, 0.026558181270956993, -0.04977549985051155, -0.03558661416172981, 0.048316869884729385, 0.022767281159758568, -0.009708385914564133, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.1.self_attention.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.932>
+         [0.02946591190993786, 0.05715096741914749, 0.012936358340084553, 0.019203558564186096, 0.008053337223827839, -0.03247137740254402, -0.06717648357152939, -4.8874779167817906e-5, 0.018812717869877815, -0.058617446571588516, 0.006206980440765619, 0.08548291027545929, 0.059424709528684616, -0.10912831872701645, 0.025532983243465424, 0.0956832617521286, 0.0434577502310276, -0.029316920787096024, 0.01829536072909832, -0.03216253221035004, -0.10856087505817413, -0.02041194774210453, -0.04179378226399422, 0.01145591214299202, 0.005055782850831747, -0.009750907309353352, 0.02422257699072361, 0.06666786223649979, 0.053622450679540634, 0.10672137886285782, 0.06237635388970375, -0.051854029297828674, 0.025027377530932426, 0.021163439378142357, 0.02622155100107193, 0.04093751311302185, 0.033725399523973465, 0.05618949979543686, -0.020290879532694817, 0.04757976531982422, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6635>
+         [
+           [-0.013907451182603836, -0.011005634441971779, 0.013030054047703743, -0.01969771273434162, 0.01250819955021143, 0.0013937491457909346, 0.07591360062360764, -0.018739454448223114, -2.1800359536428005e-4, 0.03253689780831337, -0.024003546684980392, -0.05913093313574791, -0.02642645128071308, -0.008723459206521511, 0.027002213522791862, -0.022253146395087242, 0.02275279350578785, 0.011431167833507061, 0.030768655240535736, -0.022958848625421524, 0.011059997603297234, 0.010972961783409119, 0.03437172994017601, 0.01532861590385437, 0.012377498671412468, -0.0070255352184176445, -0.01912374049425125, -0.015183537267148495, -0.014101866632699966, -0.041770003736019135, -0.012851369567215443, 0.009640335105359554, 0.033827684819698334, -0.00999187957495451, -0.02087494544684887, -0.031077157706022263, -6.884050671942532e-4, -0.04389477148652077, -0.029960917308926582, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.8.output_norm" => %{
+       "beta" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.812>
+         [-0.06043394282460213, -0.066573865711689, -0.053411275148391724, -0.003747328417375684, -0.1085527166724205, -0.025190001353621483, -0.12747204303741455, -0.08072888106107712, 0.0012453739764168859, 0.02183009870350361, -0.07459970563650131, -0.11654665321111679, 0.0370967760682106, -0.052080124616622925, -0.023332955315709114, -0.14723555743694305, -0.08168070763349533, -0.09028986841440201, -0.013639688491821289, -0.06403525918722153, -0.13043810427188873, -0.015306453220546246, -0.06100749969482422, -0.16938528418540955, -0.056227125227451324, -0.1268589049577713, -0.03796906769275665, 0.02993377298116684, 0.03839343041181564, -0.08922680467367172, -0.03281080350279808, -0.042680446058511734, -0.13963817059993744, -0.0028614606708288193, -0.019902992993593216, -0.0458095446228981, 0.039919413626194, -0.039523135870695114, -0.05023927614092827, ...]
+       >,
+       "gamma" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.813>
+         [0.8446734547615051, 0.844210147857666, 0.8258220553398132, 0.8455308675765991, 0.8207573294639587, 0.8428272604942322, 0.8013726472854614, 0.8314568400382996, 0.8505685329437256, 0.8287681937217712, 0.8372817039489746, 0.811413049697876, 0.8264606595039368, 0.8163104057312012, 0.8410468697547913, 0.7895621061325073, 0.8200775980949402, 0.8324905037879944, 0.8292334675788879, 0.8471506834030151, 0.8465400338172913, 0.8390286564826965, 0.8539319634437561, 0.820590615272522, 0.8207816481590271, 0.8335549831390381, 0.8173902034759521, 0.8164927959442139, 0.8008476495742798, 0.848416805267334, 0.8400367498397827, 0.8323962092399597, 0.8278406858444214, 0.8336964845657349, 0.8601663708686829, 0.8532596230506897, 0.8069376945495605, 0.842384934425354, ...]
+       >
+     },
+     "encoder.blocks.8.ffn.intermediate" => %{
+       "bias" => #Nx.Tensor<
+         f32[3072]
+         EXLA.Backend<host:0, 0.2215748881.973471769.816>
+         [-0.08129632472991943, -0.16911080479621887, -0.10681770741939545, -0.10392351448535919, -0.13120006024837494, -0.011798721738159657, -0.1200084537267685, 0.010054854676127434, -0.12398459017276764, -0.12310681492090225, -0.15091854333877563, -0.10151969641447067, -0.12825195491313934, -0.10191959887742996, -0.13888294994831085, -0.08935920894145966, -0.0952535942196846, -0.07394544035196304, -0.1271049678325653, -0.13040056824684143, -0.11375411599874496, -0.044780928641557693, -0.06541562080383301, -0.12007313221693039, -0.12058863788843155, -0.057256169617176056, -0.08486165851354599, -0.10648871958255768, -0.09432584792375565, -0.09546934068202972, -0.06549565494060516, -0.10799623280763626, -0.03529499098658562, -0.09650979936122894, 0.003653779625892639, -0.15020208060741425, -0.10782068967819214, -0.11833950877189636, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][3072]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6596>
+         [
+           [-0.019628144800662994, -0.014825860969722271, -0.022926241159439087, 0.033971451222896576, 0.024574823677539825, 0.04485321044921875, -0.03865649551153183, 0.016208883374929428, -0.0026103327982127666, -0.08749420940876007, 0.010003369301557541, 0.035267461091279984, -0.028850192204117775, -0.005239215213805437, -0.05697203055024147, 0.053931090980768204, 0.008175471797585487, -0.054851166903972626, -0.015152518637478352, -0.025562196969985962, 0.005312340799719095, -0.03159604221582413, -0.05591434985399246, -0.09229748696088791, 0.002820785855874419, 0.012948007322847843, 0.022837437689304352, 0.019466128200292587, 0.017054563388228416, -0.030490119010210037, -0.05434443801641464, 0.004601079039275646, 0.003962939139455557, 0.024685537442564964, 0.015596946701407433, -0.11287673562765121, 0.04403756186366081, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.10.self_attention.query" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.794>
+         [-0.036675672978162766, -0.014496535062789917, -0.03822913393378258, 0.0011834293836727738, -0.05489838495850563, -0.06608575582504272, -0.010282950475811958, 0.06327700614929199, -0.01761527732014656, -0.04052501544356346, -0.00458764610812068, 0.022352105006575584, -0.022755643352866173, 0.07407933473587036, 0.009413638152182102, -0.0341956801712513, 0.060985833406448364, 0.02079055830836296, 0.03005039691925049, -0.02476343885064125, 0.1139109879732132, 0.05748031288385391, 0.04481423646211624, 0.009573378600180149, 0.08284680545330048, -0.03663737699389458, -0.04661707952618599, -0.0777081847190857, -0.06125263869762421, -0.01641608215868473, 0.06005129963159561, -0.01658063381910324, 0.013532616198062897, -0.03435773029923439, 0.03370656073093414, -0.02672845497727394, -0.05141616612672806, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6637>
+         [
+           [7.121179369278252e-4, -0.008530639111995697, 0.01776992715895176, 0.03189976140856743, 0.02183622680604458, 0.07564590126276016, -0.02013792283833027, 0.008131367154419422, 0.03028181381523609, -0.06208683177828789, -0.014936295337975025, 0.03431414067745209, 0.05585271865129471, -0.026958253234624863, 0.060402922332286835, 0.005342172458767891, -0.07465934008359909, -0.0038248545024544, 0.03628779947757721, 0.022159455344080925, 0.020582517609000206, 0.04549240320920944, 0.05966347083449364, 0.05258489400148392, -0.00919530913233757, -0.00794549286365509, -0.005820861551910639, 0.034869659692049026, -0.013018517754971981, 0.025494735687971115, 0.05644335597753525, -0.03591363877058029, -0.04917282238602638, 0.025493044406175613, 0.04284113645553589, 0.056279800832271576, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.1.output_norm" => %{
+       "beta" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.924>
+         [-0.07662534713745117, -0.10506563633680344, 0.03191236034035683, 0.07633785158395767, -0.1118779107928276, 0.1203412264585495, -0.18939776718616486, -0.13437388837337494, -0.06924201548099518, -0.06782568246126175, -0.0542631521821022, -0.1424577236175537, 0.06993428617715836, -0.2085750252008438, -0.0032875952310860157, -0.023190893232822418, 0.06896896660327911, 0.08910070359706879, -0.02642221376299858, -0.26609066128730774, -0.09997962415218353, 0.1722874492406845, -0.16667713224887848, -0.061605729162693024, 0.04668950289487839, -0.1197545975446701, -0.10204362124204636, 0.05263463780283928, 0.07895095646381378, -0.07803431898355484, -0.014889068901538849, -0.0555860735476017, -0.12998342514038086, 0.07199688255786896, -0.10002539306879044, 0.015325709246098995, ...]
+       >,
+       "gamma" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.925>
+         [0.9017882943153381, 0.8868775963783264, 0.8862677216529846, 0.858656644821167, 0.8749645352363586, 0.878279983997345, 0.8626378178596497, 0.9149607419967651, 0.9263564348220825, 0.8871591687202454, 0.8447902202606201, 0.7958769202232361, 0.8601455688476562, 0.809457004070282, 0.9264218807220459, 0.8574751019477844, 0.863554835319519, 0.8071691989898682, 0.9398042559623718, 0.8179206252098083, 0.8616034984588623, 0.8483588099479675, 0.8978807926177979, 0.8965616822242737, 0.827293872833252, 0.8883074522018433, 0.8270042538642883, 0.8976352214813232, 0.8617835640907288, 0.8828598260879517, 0.91554856300354, 0.8368256092071533, 0.8604103326797485, 0.9125967621803284, 0.908951997756958, ...]
+       >
+     },
+     "encoder.blocks.1.self_attention_norm" => %{
+       "beta" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.930>
+         [0.08583714812994003, 0.14199966192245483, -0.08566369861364365, -0.18797270953655243, 0.2105681449174881, -0.24415776133537292, 0.2729036211967468, 0.16494762897491455, 0.03236499801278114, 0.10971055924892426, -0.020774604752659798, 0.2400500327348709, -0.18267305195331573, 0.3032726049423218, -0.0054402779787778854, -0.014303331263363361, -0.11269492655992508, -0.2902910113334656, -0.05455340817570686, 0.5176387429237366, 0.20927833020687103, -0.3685382604598999, 0.20007675886154175, 0.10004260390996933, -0.17576758563518524, 0.22373616695404053, 0.11766491830348969, -0.1795841008424759, -0.19986547529697418, 0.09800106287002563, -0.03896619752049446, 0.03907476365566254, 0.20838740468025208, -0.1981629878282547, 0.12071830779314041, ...]
+       >,
+       "gamma" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.931>
+         [0.8969619870185852, 0.871488630771637, 0.8531160950660706, 0.8690646886825562, 0.9488986730575562, 0.9266527891159058, 0.8983973860740662, 0.8933374881744385, 0.8883078098297119, 0.8676732182502747, 0.8262532353401184, 0.8613636493682861, 0.8636607527732849, 0.9061011672019958, 0.8787460327148438, 0.867405116558075, 0.8051645159721375, 0.8844211101531982, 0.9047191143035889, 0.9702293276786804, 0.8812668323516846, 0.890318751335144, 0.9029077887535095, 0.8782747983932495, 0.8593515157699585, 0.9128466248512268, 0.8559625148773193, 0.8883224725723267, 0.8354368209838867, 0.8711636066436768, 0.8992219567298889, 0.8559573888778687, 0.9149481654167175, 0.8976157903671265, ...]
+       >
+     },
+     "encoder.blocks.1.ffn.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.926>
+         [-0.02514723502099514, 0.09868993610143661, -0.027810996398329735, 0.03749462217092514, 0.010865137912333012, 0.020664149895310402, -0.06098497286438942, 0.10829571634531021, -0.0226247888058424, 0.10681068897247314, 0.04245484620332718, -0.001214141258969903, 0.021134736016392708, -0.027461087331175804, -0.06150614842772484, 0.015592438168823719, 0.1441049873828888, -0.05487547814846039, -0.019507110118865967, -0.00930030643939972, 0.002802886301651597, -0.05430993065237999, -0.043564923107624054, -0.059387948364019394, -0.05700773745775223, 0.04892813041806221, -0.08357216417789459, 0.06571639329195023, -0.08648902177810669, -0.03883592411875725, -0.0064295027405023575, -0.014236940070986748, -0.014229397289454937, 0.021928610280156136, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[3072][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6588>
+         [
+           [-0.023726483806967735, 0.033263493329286575, 0.08291997015476227, -0.015190383419394493, 0.018685566261410713, -0.025574928149580956, -0.032648321241140366, -0.050202999264001846, -0.02269870601594448, 0.0183827206492424, 0.004609363619238138, -6.046261405572295e-4, 0.09226754307746887, -0.003822935512289405, -0.005457411054521799, -0.03077220916748047, -0.12204425781965256, -0.07078418880701065, -0.13812342286109924, -0.0015836606035009027, 0.012042910791933537, -0.03560028597712517, 0.05178181082010269, -0.0055486345663666725, 0.003800069447606802, 0.015076539479196072, -0.0801151916384697, -0.047947581857442856, -0.03421908617019653, -0.05094675347208977, 0.05562707409262657, -4.7225088928826153e-4, -0.012600045651197433, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.2.self_attention.key" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.920>
+         [-3.740381507668644e-4, -0.0012588145909830928, -0.0011473436607047915, -0.0015774145722389221, 3.712190082296729e-4, -0.0016006131190806627, -0.0012858055997639894, 0.002134686568751931, 0.0026059404481202364, 2.3022686946205795e-4, -1.5696098853368312e-4, 3.970357056459761e-7, 0.001926999306306243, -6.850893842056394e-4, 0.0011899915989488363, 4.86028817249462e-4, -2.7293406310491264e-4, 7.622200646437705e-4, 0.0024113848339766264, 0.0025821560993790627, 0.001397887710481882, 0.0010252405190840364, 0.0010933851590380073, -1.888227416202426e-4, 0.0010268687037751079, 2.2610921587329358e-4, -0.002659126417711377, 0.0013308909256011248, 8.258047746494412e-4, 1.6736112229409628e-5, 8.442100952379405e-4, 0.0020241732709109783, -0.0012197252362966537, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6633>
+         [
+           [0.04794507101178169, 0.025176314637064934, -0.013195543549954891, -0.02094731666147709, 0.09073472023010254, -0.08178851753473282, -0.0998646467924118, 0.0495486706495285, -0.04416191205382347, -0.04729381576180458, -0.0203736312687397, 0.11802331358194351, 0.022709781304001808, -0.04893792048096657, 0.007316876668483019, 0.05071181803941727, -0.03869600594043732, -0.11479293555021286, -0.026403125375509262, 0.05156309902667999, -0.10739203542470932, 0.018293173983693123, -0.008751897141337395, -0.06696084141731262, 0.10941068083047867, 0.006048193201422691, -0.05412260815501213, -0.002098116558045149, 0.0148752611130476, 0.07365203648805618, 0.07769028842449188, 0.06711701303720474, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.3.ffn.intermediate" => %{
+       "bias" => #Nx.Tensor<
+         f32[3072]
+         EXLA.Backend<host:0, 0.2215748881.973471769.896>
+         [-0.11436842381954193, -0.15038084983825684, -0.0784297063946724, 0.013358767144382, -0.09492484480142593, -0.10805053263902664, -0.10392533242702484, -0.08843135088682175, -0.1558750569820404, -0.09177615493535995, -0.11907078325748444, -0.13322831690311432, -0.02074265480041504, 0.08556503057479858, -0.13168112933635712, -0.11032474786043167, -0.11195144802331924, -0.1044340431690216, -0.1220940351486206, -0.05937734618782997, -0.09575125575065613, 0.07084576785564423, -0.16190429031848907, -0.12144302576780319, -0.09043438732624054, -0.14622478187084198, -0.10694354772567749, -0.07346051931381226, -0.11897381395101547, -0.21899768710136414, -0.05573391169309616, -0.08997075259685516, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][3072]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6604>
+         [
+           [-0.027335673570632935, 0.03307878226041794, -0.013312924653291702, -3.2527410075999796e-4, 0.0325208380818367, -0.02701820805668831, 0.024145830422639847, 0.010999464429914951, 0.06745091825723648, -0.0720030665397644, -0.004282623063772917, -0.03890395537018776, -0.033273033797740936, 0.04110528156161308, 0.018107719719409943, 0.04409920424222946, -0.08346187323331833, -0.04823855683207512, 0.04443943127989769, 0.024539634585380554, -0.06858272850513458, -0.021424388512969017, -0.017927484586834908, -0.08340099453926086, -0.09773121029138565, -0.09896030277013779, 0.003341801930218935, 0.04734564945101738, -0.0361473485827446, 0.02127094566822052, -0.040376920253038406, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.5.self_attention.query" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.874>
+         [-0.008591174148023129, -0.016424046829342842, -0.043910786509513855, 0.010856921784579754, 0.029258865863084793, 0.03822443261742592, 0.037853408604860306, 0.12556219100952148, -0.004272983409464359, 0.04393193498253822, 0.10713781416416168, -0.004119446501135826, -0.025250321254134178, -0.027103165164589882, 0.10654839873313904, -0.3357331156730652, 0.02198723703622818, 0.298798531293869, 0.03625885769724846, 0.11891080439090729, -0.007353768218308687, -0.06615228950977325, -0.06153511255979538, 0.021164538338780403, 0.06967484205961227, 0.02298922650516033, -0.04122057557106018, -0.03951535001397133, 0.01884288340806961, -0.005087021738290787, -0.03789728134870529, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6641>
+         [
+           [-0.00858843419700861, -0.039201267063617706, 0.02552993968129158, -0.027865517884492874, 0.02436484582722187, 0.026138143613934517, -0.03049524500966072, -0.03765088692307472, -0.02570580318570137, -0.034695304930210114, -0.04815863072872162, 3.545201034285128e-4, 0.010088055394589901, -0.0041182516142725945, -0.01253965962678194, -0.014098219573497772, 0.049822475761175156, 0.017708709463477135, -0.013770541176199913, 0.03804856538772583, -0.08011487126350403, 9.902241436066106e-5, 0.08482104539871216, 0.08138854056596756, 0.01777070201933384, 0.019192414358258247, 0.033323634415864944, 0.005999667104333639, 0.003733340883627534, 0.05781184881925583, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.9.output_norm" => %{
+       "beta" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.796>
+         [-0.04136160761117935, -0.02113916538655758, -0.07581076771020889, -0.008097907528281212, -0.09790537506341934, -0.06423953175544739, -0.11136839538812637, -0.0888851061463356, 0.004287245683372021, 0.010239523835480213, -0.06585384905338287, -0.0804922878742218, 0.029897291213274002, -0.062206484377384186, -0.04844575747847557, -0.10728812962770462, -0.10719265788793564, -0.06613314151763916, 0.012595195323228836, -0.048516303300857544, -0.1154184639453888, -0.028712892904877663, -0.08322104066610336, -0.16142237186431885, -0.05550551787018776, -0.08878228813409805, -0.06146197021007538, -0.00561089813709259, 0.0026671949308365583, -0.05564691126346588, ...]
+       >,
+       "gamma" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.797>
+         [0.8250572085380554, 0.8347713351249695, 0.7794141173362732, 0.8126495480537415, 0.782791793346405, 0.816499650478363, 0.7776288986206055, 0.774669349193573, 0.82099449634552, 0.7963979840278625, 0.7777439951896667, 0.7842273712158203, 0.7933174967765808, 0.801586389541626, 0.825127899646759, 0.7819682359695435, 0.7733676433563232, 0.7916778922080994, 0.8152775168418884, 0.8293558955192566, 0.7856857776641846, 0.7942573428153992, 0.8350066542625427, 0.8044107556343079, 0.8106403350830078, 0.7977161407470703, 0.7718124389648438, 0.8027767539024353, 0.770077645778656, ...]
+       >
+     },
+     "encoder.blocks.3.ffn.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.894>
+         [-0.03873252123594284, 0.08414765447378159, -0.03993229568004608, 0.01997361145913601, 0.12924596667289734, -0.03432529792189598, 0.010271693579852581, 0.1049705445766449, -0.003951170947402716, -0.026222562417387962, -0.05258747562766075, 0.10256076604127884, 0.06937896460294724, 0.009193787351250648, -0.026524031534790993, 0.032820455729961395, 0.0840916782617569, -0.02793058194220066, -0.03580924868583679, -0.008038409054279327, 0.008353868499398232, -0.12534460425376892, -0.03488754853606224, -0.061750199645757675, -0.04772573709487915, 0.07236181944608688, -0.0394093357026577, 0.03259873390197754, -0.2311912477016449, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[3072][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6617>
+         [
+           [-0.017511527985334396, 0.016313135623931885, -0.026600107550621033, 0.035699471831321716, -0.013947629369795322, -0.015512715093791485, -0.02677740715444088, -0.021132128313183784, 8.839315851218998e-4, 0.005464032758027315, -0.005004841834306717, 0.10901445150375366, 0.032367631793022156, -0.02168450690805912, -0.05298659950494766, 0.03410041332244873, -0.028672682121396065, -0.03522014245390892, 0.03697775676846504, -0.001803683233447373, 0.011016761884093285, -0.011791025288403034, -0.017790330573916435, 0.017621932551264763, 0.02351430431008339, 0.01015698816627264, 0.007050512824207544, 0.011308876797556877, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.0.self_attention.query" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.954>
+         [0.5848850607872009, -0.3312431871891022, -0.4301017224788666, 0.37446147203445435, -0.29811692237854004, 0.4103281497955322, 0.01364609319716692, 0.29376381635665894, 0.23382584750652313, -0.1294490098953247, 0.13668985664844513, 0.45210185647010803, -0.100817009806633, 0.11044388264417648, 0.4316718280315399, 0.5654066801071167, 0.030793700367212296, -0.046629343181848526, -0.3148224353790283, -0.1194244846701622, 0.0061345635913312435, 0.006242748349905014, 0.002339569851756096, 0.47037363052368164, -0.02288617566227913, -0.06237482652068138, -0.07107331603765488, 0.5856404900550842, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6624>
+         [
+           [-0.01640571653842926, -0.0325702540576458, 0.010462949052453041, -0.04442816227674484, -0.02256123721599579, 0.013441400602459908, -0.03055252507328987, -0.03036554716527462, 0.07892544567584991, 0.010865419171750546, -0.004077412188053131, -0.030744945630431175, 0.041216105222702026, -0.023020848631858826, -0.01747906021773815, -0.03793902322649956, 0.023754369467496872, -0.021718019619584084, -0.04714934155344963, 0.01946205459535122, 0.012061369605362415, 0.003968873992562294, -0.04564324766397476, -0.04346621781587601, 0.0427323654294014, 0.020393213257193565, -0.019056491553783417, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.7.output_norm" => %{
+       "beta" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.828>
+         [-0.03142036125063896, -0.043584272265434265, -0.051320865750312805, -0.017881233245134354, -0.16399943828582764, -0.041447099298238754, -0.10129597038030624, -0.07661106437444687, -0.029850676655769348, -0.020757624879479408, -0.03810470923781395, -0.07707030326128006, 0.02895929478108883, -0.06909234821796417, -0.043256454169750214, -0.11032237112522125, -0.09879832714796066, -0.07689522951841354, 0.0030124448239803314, -0.06636036932468414, -0.13483363389968872, 0.015963545069098473, -0.08886954188346863, -0.19291040301322937, -0.08438670635223389, -0.12724663317203522, -0.017726870253682137, ...]
+       >,
+       "gamma" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.829>
+         [0.8385809659957886, 0.817964494228363, 0.8069379329681396, 0.8122536540031433, 0.7844831943511963, 0.8228098750114441, 0.7879226803779602, 0.8388473391532898, 0.839375376701355, 0.8152359127998352, 0.7910311222076416, 0.7889619469642639, 0.8094522953033447, 0.7988706231117249, 0.8094213008880615, 0.7774350643157959, 0.7899013161659241, 0.7988415360450745, 0.8176032900810242, 0.8193079829216003, 0.8294336795806885, 0.8061695098876953, 0.8304961919784546, 0.783968448638916, 0.7908388376235962, 0.8050212860107422, ...]
+       >
+     },
+     "encoder.blocks.3.self_attention.query" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.906>
+         [0.09740100800991058, -0.19290673732757568, 0.04332267493009567, 0.17937996983528137, -0.08023557811975479, 0.24005424976348877, -0.1120171919465065, -0.0787506029009819, 0.13820238411426544, -0.24162453413009644, 0.1978783756494522, -0.3204575479030609, 0.03526553884148598, 0.5715215802192688, -0.05951369181275368, -0.025558168068528175, 0.09795794636011124, -0.04749508202075958, -0.20452143251895905, 3.038373251911253e-4, 0.3026888072490692, 0.049826305359601974, -0.02919694408774376, 0.23858919739723206, 0.19353079795837402, 0.10817629098892212, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6657>
+         [
+           [0.05855455622076988, -0.0011143808951601386, -0.008289633318781853, 0.041174087673425674, -0.07591714709997177, -0.029095150530338287, 0.05699877068400383, 0.005714514292776585, -0.06696575880050659, 0.03202731907367706, -0.029370637610554695, -0.003661175025627017, 0.03759137541055679, -0.014318671077489853, -0.03960771486163139, -0.004053507465869188, -0.1081731766462326, 0.05489920452237129, 0.05124298855662346, 0.09587481617927551, 0.007090403698384762, 0.0463201180100441, 0.05442390590906143, 0.018316397443413734, -0.037053488194942474, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.9.self_attention.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.804>
+         [0.02457752823829651, 0.05051133781671524, -0.06890804320573807, -0.009627945721149445, 0.008647928945720196, -0.051857661455869675, -0.035535067319869995, -0.06314709782600403, 0.02567542903125286, -0.03349355608224869, 0.01973605901002884, -0.018778778612613678, 0.05768612399697304, -0.04910948872566223, -0.05764433741569519, -0.01165789645165205, -0.029884694144129753, 9.472019737586379e-4, -0.06528671830892563, 0.04372907802462578, -0.06630510836839676, 0.010681658051908016, -0.04526086896657944, 0.011219059117138386, 0.0346943661570549, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6594>
+         [
+           [-0.012581444345414639, 0.008712740615010262, 0.004828822333365679, -0.006758882664144039, -0.043908245861530304, 0.030916273593902588, 0.03150007501244545, -0.026118597015738487, -2.4156025028787553e-4, 0.005309568252414465, -2.7015397790819407e-4, -0.07502872496843338, -0.04422150179743767, -0.019627636298537254, -0.02427729219198227, 0.009686635807156563, -0.03194676712155342, 0.0021114887204021215, -0.03298846632242203, 0.027419717982411385, -0.06796131283044815, 0.032251328229904175, -0.028513748198747635, 0.008596498519182205, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.2.output_norm" => %{
+       "beta" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.908>
+         [-0.11390379816293716, -0.11665309220552444, 0.07883060723543167, 0.07796711474657059, -0.14219187200069427, 0.12783701717853546, -0.14821766316890717, -0.07867798209190369, -0.01962943561375141, -0.055067989975214005, -0.04298388957977295, -0.18579234182834625, 0.10453642159700394, -0.22779157757759094, -0.005826776381582022, -0.05328245460987091, 0.05993551388382912, 0.035438936203718185, 0.019045446068048477, -0.2496328055858612, -0.17382796108722687, 0.16143831610679626, -0.14571328461170197, -0.09309333562850952, ...]
+       >,
+       "gamma" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.909>
+         [0.8813260793685913, 0.8574469685554504, 0.8511921763420105, 0.8526187539100647, 0.83295738697052, 0.8609842658042908, 0.8475281000137329, 0.9016668200492859, 0.9079737067222595, 0.8548418879508972, 0.8236141800880432, 0.763957679271698, 0.8154004216194153, 0.7752588987350464, 0.8774883151054382, 0.8509933948516846, 0.8717761635780334, 0.8298995494842529, 0.9055945873260498, 0.8004544973373413, 0.8295614719390869, 0.8070865273475647, 0.8740410208702087, ...]
+       >
+     },
+     "embedder.token_type_embedding" => %{
+       "kernel" => #Nx.Tensor<
+         f32[2][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6581>
+         [
+           [4.3164269300177693e-4, 0.010988255962729454, 0.003704387927427888, 0.00150542170740664, 5.781170912086964e-4, -0.010874890722334385, 0.008657083846628666, -0.003767704823985696, -0.007535015698522329, 0.014995738863945007, 0.0037781475111842155, 0.021344929933547974, 0.003831814741715789, -0.004060930106788874, 0.0028973089065402746, -0.003014170564711094, 0.0010039397748187184, 6.804613076383248e-5, -0.011071277782320976, 0.015695499256253242, 0.012352265417575836, 0.0037865820340812206, 0.002208864549174905, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.0.ffn.intermediate" => %{
+       "bias" => #Nx.Tensor<
+         f32[3072]
+         EXLA.Backend<host:0, 0.2215748881.973471769.944>
+         [-0.1149875745177269, -0.09629171341657639, -0.12399032711982727, -0.12903599441051483, -0.0636904314160347, -0.15061740577220917, -0.10507870465517044, -0.11864326894283295, -0.13301996886730194, -0.12856730818748474, 0.019954968243837357, -0.09853123873472214, -0.14987045526504517, -0.1078392043709755, -0.016451556235551834, -0.03021884150803089, -0.0920942947268486, -0.08666637539863586, -0.12354474514722824, -0.11077611893415451, -0.11296341568231583, -0.09623357653617859, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][3072]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6648>
+         [
+           [-0.010104268789291382, -0.06039799749851227, -0.014688639901578426, 0.0031149284914135933, 0.028624506667256355, -0.02948143519461155, 0.006831306964159012, -0.01962440088391304, -0.0803585946559906, 0.04105855152010918, -0.019030021503567696, 8.599648135714233e-4, -0.02277868613600731, 0.004557223059237003, 0.0027480621356517076, -0.005988988559693098, -0.030507462099194527, 0.020005378872156143, -0.06299829483032227, -0.05022583156824112, -0.01174812950193882, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.11.ffn.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.766>
+         [-0.06574098765850067, 0.04207806661725044, 0.012010839767754078, 0.002293218160048127, 0.05551810562610626, 0.04591326788067818, 0.022021735087037086, -0.05516801029443741, -0.021741466596722603, -0.10106789320707321, -0.09893705695867538, 0.052764251828193665, -0.07348263263702393, 0.08620807528495789, 0.060888126492500305, 0.12143727391958237, 0.01073332130908966, 0.004101329017430544, 0.02867433987557888, -0.03396974131464958, 0.02277240715920925, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[3072][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6597>
+         [
+           [-0.02238200418651104, 0.010732059367001057, -0.013572128489613533, 0.024846209213137627, 0.014030911028385162, 0.012116088531911373, 0.06259871274232864, -0.04953722655773163, -0.016537265852093697, -0.014972078613936901, -0.012158941477537155, -0.005941605195403099, -0.03643188625574112, -0.03400353714823723, -0.02946709655225277, 0.017501728609204292, -0.044776685535907745, -0.04853606969118118, 0.004362346138805151, -0.06550536304712296, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.8.self_attention.key" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.824>
+         [5.5668897402938455e-5, 0.00346385408192873, -0.001760586746968329, -0.006132114678621292, -4.407457890920341e-4, -0.010080329142510891, -0.0032522310502827168, -0.01767546497285366, -0.005485896952450275, -0.004560001194477081, -6.788336904719472e-4, 0.003889074083417654, 8.585330797359347e-4, 0.006639325525611639, 0.006041325628757477, 0.001940897316671908, 0.00534041179344058, 0.0074494145810604095, 0.005136806517839432, -0.00917771365493536, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6618>
+         [
+           [-0.019997185096144676, 0.007114029489457607, 0.03949134424328804, -0.010222397744655609, 0.03152475133538246, -0.02355594001710415, 0.06585197150707245, 0.042049627751111984, 0.05615225061774254, 0.05753055214881897, -0.010819979943335056, 0.026790767908096313, 0.0052092419937253, -0.049596235156059265, -0.04089212790131569, -0.013384385034441948, -0.0583425909280777, 0.014203767292201519, -0.07651892304420471, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.5.self_attention_norm" => %{
+       "beta" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.866>
+         [-0.06841327250003815, -0.014684801921248436, 0.09792476147413254, -0.23284538090229034, 0.27856019139289856, -0.09112786501646042, 0.088249571621418, 0.13664597272872925, -0.02813098020851612, -0.10412302613258362, -0.10079164057970047, 0.07001892477273941, -0.06432587653398514, 0.08950255811214447, -0.049993593245744705, 0.08997370302677155, -0.027960501611232758, 0.007503272034227848, -0.08236773312091827, ...]
+       >,
+       "gamma" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.867>
+         [0.8908311128616333, 0.8788472414016724, 0.8163729310035706, 0.8047640919685364, 0.9653986692428589, 0.8963384628295898, 0.881551206111908, 0.875713050365448, 0.8651153445243835, 0.8502880334854126, 0.7664176821708679, 0.7567760348320007, 0.7936756014823914, 0.7722291946411133, 0.8678020238876343, 0.8452433943748474, 0.7927205562591553, 0.7913813591003418, ...]
+       >
+     },
+     "encoder.blocks.10.self_attention.value" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.790>
+         [-0.013350304216146469, -0.012241331860423088, -0.005183402914553881, -0.0023252812679857016, 0.001486141700297594, 0.02438344992697239, -0.004702900070697069, 0.006104893516749144, 0.016735337674617767, -0.028791652992367744, -0.01631285436451435, -0.036830782890319824, 6.265412084758282e-4, 0.003427001414820552, 0.0016318110283464193, -0.004761220887303352, -0.0036793320905417204, -0.014869317412376404, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6650>
+         [
+           [0.0191184189170599, 0.048588093370199203, -0.02608485147356987, 0.00794923584908247, -0.022466355934739113, -0.002926330082118511, -0.0036553589161485434, 0.016066543757915497, -0.06955159455537796, -0.034935880452394485, 0.012425028719007969, -0.042186807841062546, 0.04677403345704079, 0.04585792496800423, 0.0024847707245498896, -0.006168676074594259, -0.039571989327669144, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.10.ffn.intermediate" => %{
+       "bias" => #Nx.Tensor<
+         f32[3072]
+         EXLA.Backend<host:0, 0.2215748881.973471769.784>
+         [-0.1387912631034851, -0.0640142634510994, -0.14080430567264557, -0.1504325121641159, -0.10193056613206863, 0.041397951543331146, -0.10260208696126938, -0.11885432153940201, -0.08589690923690796, -0.03324931114912033, -0.10561298578977585, -0.126533642411232, -0.12129708379507065, -0.11102244257926941, -0.11395205557346344, -0.12413591891527176, -0.12500031292438507, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][3072]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6630>
+         [
+           [-0.07061080634593964, 0.06997396796941757, 0.014336329884827137, 0.04150928929448128, 0.028651922941207886, 0.03105536662042141, 0.07168442010879517, -0.02647247724235058, 0.011211405508220196, 0.013343742117285728, 0.009523646906018257, 0.04383274167776108, 0.037786755710840225, 0.038803830742836, 0.05189989507198334, 0.10859949141740799, ...],
+           ...
+         ]
+       >
+     },
+     "embedder.token_embedding" => %{
+       "kernel" => #Nx.Tensor<
+         f32[30522][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6584>
+         [
+           [-0.010182573460042477, -0.061548829078674316, -0.0264968890696764, -0.04206079989671707, 0.0011671616230159998, -0.0282721109688282, -0.04450004920363426, -0.022464929148554802, -0.004655344877392054, -0.08212946355342865, -0.005023793317377567, -0.04650846868753433, -0.049514368176460266, 0.021516796201467514, -0.016587788239121437, -0.03727853298187256, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.3.self_attention.value" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.902>
+         [0.045738235116004944, 0.05405984818935394, 0.0068116276524960995, 0.006559445988386869, 0.011417710222303867, -0.06223442032933235, -0.038486260920763016, 0.051516093313694, -0.02663765661418438, -0.013843747787177563, 0.07682890444993973, 0.002061625709757209, -0.022336097434163094, -0.04000474512577057, -0.03077283315360546, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6652>
+         [
+           [-0.005390319507569075, 0.009596418589353561, 0.01325458474457264, 0.004906163550913334, 0.012990797869861126, -0.011123035103082657, -0.01711338572204113, 0.015196157619357109, 0.04502992331981659, -0.0016006474616006017, 0.013613990508019924, -0.029793933033943176, 0.026222363114356995, -0.02070077694952488, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.8.self_attention.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.820>
+         [0.014681306667625904, -0.05406622216105461, -0.06289102882146835, 0.004483995959162712, 0.024081900715827942, -0.07309827208518982, -0.029787272214889526, 0.004515389911830425, -0.013620274141430855, -0.030816715210676193, 0.04089036211371422, -6.833365187048912e-4, 0.029737286269664764, -0.027497725561261177, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6595>
+         [
+           [0.03971622884273529, 0.05307066813111305, -0.012988176196813583, 0.009466932155191898, -0.0012123549822717905, 0.03288524970412254, 0.01913760043680668, -0.013859869912266731, -0.009840084239840508, 3.5148809547536075e-4, 0.06162220239639282, -0.0230109803378582, 0.01888936758041382, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.2.ffn.intermediate" => %{
+       "bias" => #Nx.Tensor<
+         f32[3072]
+         EXLA.Backend<host:0, 0.2215748881.973471769.912>
+         [-0.08474881201982498, -0.1285078078508377, -0.1155034527182579, -0.09513010829687119, -0.025198526680469513, -0.12952715158462524, -0.13681098818778992, -0.021382292732596397, -0.06431226432323456, -0.11847174912691116, -0.13910222053527832, -0.03126773238182068, -0.12814642488956451, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][3072]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6629>
+         [
+           [-0.01619919016957283, 0.006628877948969603, 0.014922840520739555, -0.012807481922209263, 0.013185962103307247, -0.026629678905010223, 0.024666596204042435, 0.07222861796617508, 0.019281258806586266, 0.0050510563887655735, 0.007538775447756052, -0.03733320161700249, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.4.ffn.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.878>
+         [-0.05068971961736679, 0.048388708382844925, 0.011560223996639252, 0.053816016763448715, 0.08857913315296173, 0.0031722541898489, -0.01128521841019392, 0.07628030329942703, -0.02339247800409794, -0.01114694681018591, -0.02531065233051777, 0.06627541780471802, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[3072][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6646>
+         [
+           [-0.05421263724565506, 0.0221117977052927, -0.026741720736026764, 0.03672202676534653, -0.0239962600171566, -0.003326697973534465, -0.03531109169125557, -0.008213147521018982, -0.04174574464559555, 0.020161878317594528, -0.0044104005210101604, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.7.self_attention.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.836>
+         [0.0034977232571691275, -0.05831751227378845, -0.05940840020775795, -0.034218695014715195, 0.029659178107976913, -0.013882651925086975, -0.03417065739631653, 0.03661227971315384, -0.0163356252014637, -0.0420999713242054, 0.00438122870400548, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6620>
+         [
+           [-0.05496111884713173, 0.010069680400192738, 0.022065307945013046, -0.01873115636408329, 0.02149118110537529, -7.41133582778275e-4, -0.02678833156824112, -0.010398521088063717, -0.021929537877440453, 0.03697759285569191, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.0.self_attention.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.948>
+         [0.00511062890291214, -0.01666249893605709, 0.02812938392162323, -0.011660613119602203, 0.019426273182034492, -0.0431647002696991, -0.016972234472632408, 0.00857613980770111, -0.013620353303849697, 0.013163551688194275, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6651>
+         [
+           [0.0058194915764033794, 0.03170148283243179, -0.06135742366313934, -0.017061078920960426, -0.007590452674776316, -4.293644451536238e-4, 0.024036230519413948, -0.033113811165094376, -0.0066995276138186455, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.8.self_attention.value" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.822>
+         [0.028928348794579506, 0.006425009109079838, -0.036087118089199066, 0.0026426883414387703, -0.024519795551896095, 0.008710646070539951, -0.005226265173405409, -0.022135987877845764, 0.034373439848423004, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6612>
+         [
+           [-0.0073605612851679325, -0.01795213297009468, 0.0010457637254148722, -3.4653424518182874e-4, 0.03190543130040169, 0.06332997977733612, -0.042365990579128265, -0.07994803786277771, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.11.self_attention_norm" => %{
+       "beta" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.770>
+         [-0.031344108283519745, 0.012079569511115551, -0.046363964676856995, -0.030130455270409584, 0.07944280654191971, 0.050981152802705765, 0.011908331885933876, -0.020651761442422867, ...]
+       >,
+       "gamma" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.771>
+         [0.8520376682281494, 0.8020145297050476, 0.8554236888885498, 0.8150476813316345, 0.844181478023529, 0.8226725459098816, 0.8562560677528381, ...]
+       >
+     },
+     "encoder.blocks.11.self_attention.value" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.774>
+         [0.01502306293696165, -0.005309417378157377, 2.3571934434585273e-4, 0.0020521762780845165, -0.005780358798801899, 0.008198251016438007, -0.011096320115029812, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6611>
+         [
+           [0.03520972654223442, -0.0067807831801474094, -0.028835834935307503, -0.01011514663696289, 0.04519828036427498, -0.019792258739471436, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.6.output_norm" => %{
+       "beta" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.844>
+         [-0.011712896637618542, -0.03209403529763222, -0.08646043390035629, 0.037603408098220825, -0.13841423392295837, -0.02181410603225231, ...]
+       >,
+       "gamma" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.845>
+         [0.8674175143241882, 0.8657013773918152, 0.815186083316803, 0.8230130672454834, 0.8305736780166626, ...]
+       >
+     },
+     "encoder.blocks.11.self_attention.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.772>
+         [0.02566087245941162, 0.0028437951114028692, -0.004756780806928873, 0.021494582295417786, -0.01755186729133129, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6632>
+         [
+           [0.0236141886562109, 0.031127072870731354, -6.303054979071021e-4, 0.04209773242473602, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.0.ffn.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.942>
+         [-0.04801027104258537, 0.19766567647457123, 0.02154853567481041, 0.028806662186980247, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[3072][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6627>
+         [
+           [-0.037101708352565765, 0.0648793950676918, 0.007585656363517046, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.5.ffn.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.862>
+         [-7.217047386802733e-4, 0.06006297469139099, 0.001659500994719565, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[3072][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6644>
+         [
+           [0.06420720368623734, -0.017387816682457924, ...],
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.2.self_attention_norm" => %{
+       "beta" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.914>
+         [0.14908090233802795, 0.12386955320835114, ...]
+       >,
+       "gamma" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.915>
+         [0.8983343243598938, ...]
+       >
+     },
+     "encoder.blocks.2.self_attention.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.916>
+         [0.01754024811089039, ...]
+       >,
+       "kernel" => #Nx.Tensor<
+         f32[768][768]
+         EXLA.Backend<host:0, 0.2215748881.973471764.6610>
+         [
+           ...
+         ]
+       >
+     },
+     "encoder.blocks.10.ffn.output" => %{
+       "bias" => #Nx.Tensor<
+         f32[768]
+         EXLA.Backend<host:0, 0.2215748881.973471769.782>
+         [...]
+       >,
+       ...
+     },
+     "encoder.blocks.5.self_attention.output" => %{...},
+     ...
+   },
+   spec: %Bumblebee.Text.Bert{
+     architecture: :base,
+     vocab_size: 30522,
+     max_positions: 512,
+     max_token_types: 2,
+     hidden_size: 768,
+     num_blocks: 12,
+     num_attention_heads: 12,
+     intermediate_size: 3072,
+     activation: :gelu,
+     dropout_rate: 0.1,
+     attention_dropout_rate: 0.1,
+     classifier_dropout_rate: nil,
+     layer_norm_epsilon: 1.0e-12,
+     initializer_scale: 0.02,
+     output_hidden_states: false,
+     output_attentions: false,
+     num_labels: 2,
+     id_to_label: %{},
+     use_cross_attention: false
+   }
+ }}
 ```
 
 ```elixir
@@ -638,31 +839,26 @@ outputs = Axon.predict(model, params, inputs)
 
 ```
 %{
+  attentions: #Axon.None<...>,
   cache: #Axon.None<...>,
   cross_attentions: #Axon.None<...>,
-  decoder_attentions: #Axon.None<...>,
-  decoder_hidden_states: #Axon.None<...>,
-  encoder_attentions: #Axon.None<...>,
-  encoder_hidden_state: #Nx.Tensor<
-    f32[50][266][1024]
-    EXLA.Backend<host:0, 0.2360421930.1766457364.108636>
+  hidden_state: #Nx.Tensor<
+    f32[100][484][768]
+    EXLA.Backend<host:0, 0.2215748881.973471764.7583>
     [
       [
-        [0.6126583814620972, -2.1102702617645264, 0.13675275444984436, 0.06399396806955338, 0.00602921936661005, 0.2257757931947708, -0.007863705046474934, -0.13207927346229553, -0.05181087926030159, -0.5740871429443359, -0.0036345068365335464, -0.4553746283054352, 0.041108205914497375, -0.1237834170460701, -0.42095643281936646, 0.2612243592739105, 1.0411511659622192, 1.1128239631652832, -0.09526826441287994, -0.12970729172229767, 0.41379329562187195, 0.21994884312152863, -0.07996617257595062, -1.2729568481445312, 0.35166776180267334, 0.08263030648231506, 0.07995341718196869, -0.9454743266105652, 0.3771441876888275, 0.7238381505012512, -0.008489547297358513, -0.3729128837585449, -0.3297499120235443, 1.1579701900482178, -1.2025402784347534, -0.0027809953317046165, 0.3789995610713959, -0.4045521318912506, -0.04887565225362778, -0.42576971650123596, -0.07607216387987137, 1.511717438697815, 0.7700494527816772, 0.5095267295837402, ...],
+        [0.02306555211544037, 0.27987852692604065, -0.5821921825408936, 0.15646660327911377, -0.7642057538032532, 0.08109083026647568, 0.6034767031669617, 0.6981108784675598, 0.17459923028945923, -0.5154337286949158, -0.1388493776321411, 0.3053648769855499, -0.8652370572090149, 0.346966415643692, -0.3492024540901184, 0.7621715664863586, 0.34022057056427, 0.6368584632873535, -0.4842233955860138, -0.020799679681658745, 0.016227975487709045, 0.01865740492939949, 0.5061497688293457, 0.00825021043419838, 0.14969784021377563, -0.09435573220252991, -0.18175578117370605, -0.07499709725379944, 0.32417377829551697, 0.14316564798355103, -0.48582080006599426, 0.6477674245834351, -0.11082305014133453, -0.2658424377441406, 0.18369223177433014, -0.05119384452700615, 0.22305458784103394, -0.7854350209236145, 0.551970899105072, 0.31367456912994385, -0.46749910712242126, 0.13662196695804596, 0.49281734228134155, 0.012343421578407288, -0.5728007555007935, 0.6122802495956421, ...],
         ...
       ],
       ...
     ]
   >,
-  encoder_hidden_states: #Axon.None<...>,
-  hidden_state: #Nx.Tensor<
-    f32[50][266][1024]
-    EXLA.Backend<host:0, 0.2360421930.1766457364.110150>
+  hidden_states: #Axon.None<...>,
+  pooled_state: #Nx.Tensor<
+    f32[100][768]
+    EXLA.Backend<host:0, 0.2215748881.973471764.7593>
     [
-      [
-        [0.5086706876754761, -0.08092417567968369, 0.32203322649002075, -0.8490794897079468, -0.018199916929006577, -0.43330860137939453, 1.108025074005127, 0.0026226032059639692, -0.25060904026031494, -0.27727118134498596, 0.2219816893339157, -0.6439535021781921, 0.4201953113079071, -0.1079673320055008, -3.458491802215576, -0.21127240359783173, 0.050890084356069565, 0.022660069167613983, 0.525284469127655, -1.3662115335464478, -1.2565923929214478, 0.7897079586982727, -0.40388956665992737, -0.4420923590660095, -0.2742520272731781, -0.04766678065061569, -0.6371666789054871, 0.28678664565086365, -0.5839983224868774, -0.5641136765480042, 0.16405224800109863, 0.7102792859077454, -0.6557484865188599, 0.8121824860572815, 0.0696544274687767, -0.10650807619094849, 0.42042532563209534, -1.5211730003356934, -0.014622707851231098, 0.1587163805961609, 0.24423551559448242, 0.41921964287757874, ...],
-        ...
-      ],
+      [-0.6920626759529114, -0.4951450228691101, -0.918341875076294, 0.3033045530319214, 0.8470627069473267, -0.42799657583236694, -0.37166282534599304, 0.2389794886112213, -0.8144425749778748, -0.9999234676361084, -0.6120824813842773, 0.9601942300796509, 0.957851231098175, 0.2598589062690735, 0.2575243413448334, -0.448203444480896, 0.2000911384820938, -0.2843877971172333, 0.19119302928447723, 0.9229782223701477, 0.28124818205833435, 0.9999988079071045, -0.4028152823448181, 0.3763923943042755, 0.43432414531707764, 0.9686545729637146, -0.650077223777771, 0.672424852848053, 0.8544331789016724, 0.7023547291755676, -0.04225948452949524, 0.26161259412765503, -0.9883249402046204, -0.11783881485462189, -0.9139403700828552, -0.9727874398231506, 0.4447881877422333, -0.40317589044570923, -0.03370293974876404, -0.14774364233016968, -0.5401602983474731, 0.4801855981349945, 0.999985933303833, -0.454772025346756, ...],
       ...
     ]
   >
@@ -679,9 +875,9 @@ outputs.hidden_state[0] |> Nx.mean(axes: [0])
 
 ```
 #Nx.Tensor<
-  f32[1024]
-  EXLA.Backend<host:0, 0.2360421930.1766457364.110157>
-  [0.3941330313682556, -0.06064549833536148, 0.36418989300727844, -0.5985559225082397, 0.0045594098046422005, -0.4444641172885895, 1.3067785501480103, 0.0027836363296955824, -2.1928536891937256, -3.4244604110717773, 0.2065287083387375, -0.46628668904304504, 1.7798439264297485, -0.12221402674913406, -4.639316558837891, -1.3650344610214233, 0.5184873938560486, 0.10328911244869232, 0.3788415193557739, 0.029969215393066406, 0.4863915741443634, 0.7670631408691406, 0.0021555637940764427, -0.4009239673614502, -0.20393066108226776, -0.20730893313884735, -0.12852557003498077, 0.30283457040786743, -0.9288793802261353, -0.8078621625900269, 0.38242965936660767, 0.014187473803758621, -0.695867657661438, 1.6673752069473267, 0.04087090492248535, -0.2464519590139389, 0.23313160240650177, -0.616675078868866, 0.006032815668731928, 0.2559294104576111, 0.047239091247320175, 0.8647549748420715, 0.2617781460285187, 2.0964324474334717, 0.2986380159854889, 0.022176578640937805, -0.01723928190767765, -0.004148632753640413, 0.00803783256560564, 1.2544965744018555, ...]
+  f32[768]
+  EXLA.Backend<host:0, 0.2215748881.973471764.7600>
+  [0.028660736978054047, 0.22521309554576874, -0.0074338726699352264, -0.055327873677015305, 0.12735405564308167, 0.14565414190292358, 0.2755005955696106, 0.30681225657463074, 0.0308088231831789, -0.29954540729522705, 0.06806526333093643, -0.2312745898962021, -0.2887386679649353, 0.07220371067523956, -0.2123124748468399, 0.43974369764328003, 0.08146654814481735, 0.21243049204349518, -0.30771589279174805, 0.3655758202075958, 0.21143752336502075, 0.21276289224624634, 0.08965978026390076, 0.299153596162796, 0.41706153750419617, -0.09850914776325226, 0.04525218531489372, 0.16348539292812347, 0.029008975252509117, -0.18413814902305603, 0.32039156556129456, 0.20418639481067657, -0.0028485930524766445, -0.08874375373125076, -0.06845348328351974, 0.05725181847810745, -0.10295362025499344, -0.4169207215309143, 0.18893051147460938, -0.021385297179222107, -0.38942813873291016, -0.1602327525615692, -0.16687016189098358, -0.05575847998261452, -0.3649350702762604, 0.010401593521237373, 0.18231527507305145, -0.0013132854364812374, -0.12517322599887848, 0.11196190118789673, ...]
 >
 ```
 
@@ -690,13 +886,13 @@ outputs.hidden_state[0] |> Nx.mean(axes: [0])
 We use [ex_faiss](https://github.com/elixir-nx/ex_faiss) which is a wrapper library of Faiss similarity search engine.
 
 ```elixir
-index = ExFaiss.Index.new(1024, "Flat")
+index = ExFaiss.Index.new(768, "Flat")
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-%ExFaiss.Index{dim: 1024, ref: #Reference<0.2360421930.1770127361.117727>, device: :host}
+%ExFaiss.Index{dim: 768, ref: #Reference<0.2215748881.973471745.260759>, device: :host}
 ```
 
 ```elixir
@@ -712,19 +908,13 @@ index =
 <!-- livebook:{"output":true} -->
 
 ```
-%ExFaiss.Index{dim: 1024, ref: #Reference<0.2360421930.1770127361.117727>, device: :host}
+%ExFaiss.Index{dim: 768, ref: #Reference<0.2215748881.973471745.260759>, device: :host}
 ```
 
 In the code below, we send a query to the vector search engine. The query is converted into an embedding using the same method above.
 
 ```elixir
-query =
-  "現在の空港通り最南端は長束より約9kmの距離である"
-  |> Jumanpp.parse!()
-  |> Enum.map(fn token ->
-    token |> Map.get(:surface)
-  end)
-  |> Enum.join(" ")
+query = "In the gene-centric view of evolution, how does the evolutionary gene function?"
 
 query_input =
   tokenizer
@@ -738,9 +928,9 @@ query_vector = query_output.hidden_state[0] |> Nx.mean(axes: [0])
 
 ```
 #Nx.Tensor<
-  f32[1024]
-  EXLA.Backend<host:0, 0.2360421930.1766457364.133286>
-  [0.5831000208854675, -3.034771652892232e-4, 0.08205306529998779, -0.055049214512109756, 0.06266426295042038, -0.3162213861942291, 1.281263828277588, 0.0024427149910479784, -2.2291359901428223, -1.7786450386047363, 0.19939860701560974, -1.5886427164077759, 1.1013633012771606, -0.19232556223869324, -4.319876670837402, 0.0030586090870201588, 0.7640552520751953, -0.008027473464608192, 1.0506019592285156, -3.1819090843200684, 2.317596435546875, 0.7729713916778564, 0.39645785093307495, -0.7868326306343079, 0.20028264820575714, -0.7518599033355713, 0.5423923134803772, 0.24677692353725433, -1.1738601922988892, -0.8609621524810791, 0.5466128587722778, 0.6143438816070557, 0.1641109734773636, 1.551936149597168, 0.046410202980041504, -0.07044520974159241, -0.5370039939880371, 0.8404970169067383, 0.01663922891020775, 0.21829378604888916, 0.3926031291484833, 0.8959619998931885, 0.3973386883735657, 2.413151979446411, -0.1077832281589508, -0.15116171538829803, -0.022952109575271606, -0.008038638159632683, -0.13746857643127441, 1.417806625366211, ...]
+  f32[768]
+  EXLA.Backend<host:0, 0.2215748881.973471764.17205>
+  [-0.2065352499485016, 0.08167853206396103, -0.48367953300476074, -0.21306577324867249, 0.29633402824401855, -0.06238754093647003, 0.3048556447029114, 0.5878140330314636, 0.27764636278152466, -0.411770761013031, 0.3951338231563568, -0.1816340535879135, -0.4386100172996521, 0.45537257194519043, -0.4510400593280792, 0.5182425379753113, 0.23498043417930603, 0.12432961910963058, -0.04090441018342972, 0.11020141839981079, -0.04371020197868347, 0.3927648663520813, -0.4285042881965637, 0.848774254322052, 0.42529621720314026, 0.02912973426282406, -0.02175907790660858, 0.2004636526107788, 0.27059948444366455, -0.014417693950235844, 0.16121222078800201, 0.3851833641529083, -0.3335954248905182, -0.30186542868614197, -0.6783165335655212, 0.24532894790172577, -0.07054624706506729, -0.08112826943397522, -0.2395838499069214, 0.6473484039306641, -0.8936739563941956, -0.43751847743988037, -0.3485804498195648, 0.5109588503837585, -0.37819626927375793, -0.5433847308158875, 0.02253582514822483, -0.011751922778785229, 0.09641613811254501, -0.655897319316864, ...]
 >
 ```
 
@@ -756,24 +946,24 @@ doc_ids =
 <!-- livebook:{"output":true} -->
 
 ```
-[20, 33, 6, 35, 38]
+[47, 65, 92, 48, 0]
 ```
 
 ```elixir
 doc_ids
 |> Enum.map(fn i ->
-  docs |> Enum.at(i)
+  dataset |> Enum.at(i)
 end)
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-["小田急小田原線 [SEP] 一部を除いて登戸駅 - 成城学園前駅間は緩行線、成城学園前駅 - 経堂駅間は急行線、経堂駅 - 代々木上原駅間は再び緩行線を使用し、登戸駅と成城学園前駅でそれぞれ新宿方面の快速急行と各駅停車に、経堂駅で千代田線方面の各駅停車に接続する。現状で唯一全列車が急行線と緩行線を両方使う種別である。",
- "広島市 [SEP] 。現在の空港通り最南端は長束より約9kmの距離である。",
- "漢詩 [SEP] 現在でも自作の漢詩集を著している陳舜臣等、漢詩創作の愛好家は存在しており、月刊誌大法輪では読者の投稿した漢詩が毎号掲載されている。また、自らは創らないのものの、書道の世界では、漢詩は読むもの、見るものとして基礎的な教養の一部となっている。また、学校教育でも、漢詩にふれることが多い。",
- "測量 [SEP] 位置、高さを求める測量。トラバース測量とも呼ばれる。測点間の測定方法は三角測量と同一。基準点から測点A、測点Aから測点B、測点Bから測点Cという具合に測点を結んで測量区域を多角形で示し、多角形の各辺の長さ・角度で位置関係を求める。",
- "東海道新幹線 [SEP] 1996年（平成8年）3月改正より一部列車が、2003年（平成15年）10月改正で全列車が270 km/h運転となった。さらに2015年（平成27年）3月改正より下り列車1本が285 km/h運転となっている。"]
+["The theories developed in the 1930s and 1940s to integrate molecular genetics with Darwinian evolution are called the modern evolutionary synthesis, a term introduced by Julian Huxley. Evolutionary biologists subsequently refined this concept, such as George C. Williams' gene-centric view of evolution. He proposed an evolutionary concept of the gene as a unit of natural selection with the definition: \"that which segregates and recombines with appreciable frequency.\":24 In this view, the molecular gene transcribes as a unit, and the evolutionary gene inherits as a unit. Related ideas emphasizing the centrality of genes in evolution were popularized by Richard Dawkins.",
+ "Midway through the 19th century, the focus of geology shifted from description and classification to attempts to understand how the surface of the Earth had changed. The first comprehensive theories of mountain building were proposed during this period, as were the first modern theories of earthquakes and volcanoes. Louis Agassiz and others established the reality of continent-covering ice ages, and \"fluvialists\" like Andrew Crombie Ramsay argued that river valleys were formed, over millions of years by the rivers that flow through them. After the discovery of radioactivity, radiometric dating methods were developed, starting in the 20th century. Alfred Wegener's theory of \"continental drift\" was widely dismissed when he proposed it in the 1910s, but new data gathered in the 1950s and 1960s led to the theory of plate tectonics, which provided a plausible mechanism for it. Plate tectonics also provided a unified explanation for a wide range of seemingly unrelated geological phenomena. Since 1970 it has served as the unifying principle in geology.",
+ "While medieval pageants and festivals such as Corpus Christi were church-sanctioned, Carnival was also a manifestation of medieval folk culture. Many local Carnival customs are claimed to derive from local pre-Christian rituals, such as elaborate rites involving masked figures in the Swabian–Alemannic Fastnacht. However, evidence is insufficient to establish a direct origin from Saturnalia or other ancient festivals. No complete accounts of Saturnalia survive and the shared features of feasting, role reversals, temporary social equality, masks and permitted rule-breaking do not necessarily constitute a coherent festival or link these festivals. These similarities may represent a reservoir of cultural resources that can embody multiple meanings and functions. For example, Easter begins with the resurrection of Jesus, followed by a liminal period and ends with rebirth. Carnival reverses this as King Carnival comes to life, a liminal period follows before his death. Both feasts are calculated by the lunar calendar. Both Jesus and King Carnival may be seen as expiatory figures who make a gift to the people with their deaths. In the case of Jesus, the gift is eternal life in heaven and in the case of King Carnival, the acknowledgement that death is a necessary part of the cycle of life. Besides Christian anti-Judaism, the commonalities between church and Carnival rituals and imagery suggest a common root. Christ's passion is itself grotesque: Since early Christianity Christ is figured as the victim of summary judgement, is tortured and executed by Romans before a Jewish mob (\"His blood is on us and on our children!\" Matthew 27:24–25). Holy Week processions in Spain include crowds who vociferously insult the figure of Jesus. Irreverence, parody, degradation and laughter at a tragicomic effigy God can be seen as intensifications of the sacred order. In 1466, the Catholic Church under Pope Paul II revieved customs of the Saturnalia carnival: Jews were forced to race naked through the streets of the city of Rome. “Before they were to run, the Jews were richly fed, so as to make the race more difficult for them and at the same time more amusing for spectators. They ran… amid Rome’s taunting shrieks and peals of laughter, while the Holy Father stood upon a richly ornamented balcony and laughed heartily”, an eyewitness reports.",
+ "A number of studies have reported associations between pathogen load in an area and human behavior. Higher pathogen load is associated with decreased size of ethnic and religious groups in an area. This may be due high pathogen load favoring avoidance of other groups, which may reduce pathogen transmission, or a high pathogen load preventing the creation of large settlements and armies that enforce a common culture. Higher pathogen load is also associated with more restricted sexual behavior, which may reduce pathogen transmission. It also associated with higher preferences for health and attractiveness in mates. Higher fertility rates and shorter or less parental care per child is another association that may be a compensation for the higher mortality rate. There is also an association with polygyny which may be due to higher pathogen load, making selecting males with a high genetic resistance increasingly important. Higher pathogen load is also associated with more collectivism and less individualism, which may limit contacts with outside groups and infections. There are alternative explanations for at least some of the associations although some of these explanations may in turn ultimately be due to pathogen load. Thus, polygny may also be due to a lower male:female ratio in these areas but this may ultimately be due to male infants having increased mortality from infectious diseases. Another example is that poor socioeconomic factors may ultimately in part be due to high pathogen load preventing economic development.",
+ "Many insects possess very sensitive and, or specialized organs of perception. Some insects such as bees can perceive ultraviolet wavelengths, or detect polarized light, while the antennae of male moths can detect the pheromones of female moths over distances of many kilometers. The yellow paper wasp (Polistes versicolor) is known for its wagging movements as a form of communication within the colony; it can waggle with a frequency of 10.6±2.1 Hz (n=190). These wagging movements can signal the arrival of new material into the nest and aggression between workers can be used to stimulate others to increase foraging expeditions. There is a pronounced tendency for there to be a trade-off between visual acuity and chemical or tactile acuity, such that most insects with well-developed eyes have reduced or simple antennae, and vice versa. There are a variety of different mechanisms by which insects perceive sound, while the patterns are not universal, insects can generally hear sound if they can produce it. Different insect species can have varying hearing, though most insects can hear only a narrow range of frequencies related to the frequency of the sounds they can produce. Mosquitoes have been found to hear up to 2 kHz., and some grasshoppers can hear up to 50 kHz. Certain predatory and parasitic insects can detect the characteristic sounds made by their prey or hosts, respectively. For instance, some nocturnal moths can perceive the ultrasonic emissions of bats, which helps them avoid predation.:87–94 Insects that feed on blood have special sensory structures that can detect infrared emissions, and use them to home in on their hosts."]
 ```
 
 ## Calculate cosign similarity by our own
@@ -812,22 +1002,22 @@ doc_ids =
 <!-- livebook:{"output":true} -->
 
 ```
-[20, 33, 6, 35, 5]
+[47, 65, 92, 48, 0]
 ```
 
 ```elixir
 doc_ids
 |> Enum.map(fn i ->
-  docs |> Enum.at(i)
+  dataset |> Enum.at(i)
 end)
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-["小田急小田原線 [SEP] 一部を除いて登戸駅 - 成城学園前駅間は緩行線、成城学園前駅 - 経堂駅間は急行線、経堂駅 - 代々木上原駅間は再び緩行線を使用し、登戸駅と成城学園前駅でそれぞれ新宿方面の快速急行と各駅停車に、経堂駅で千代田線方面の各駅停車に接続する。現状で唯一全列車が急行線と緩行線を両方使う種別である。",
- "広島市 [SEP] 。現在の空港通り最南端は長束より約9kmの距離である。",
- "漢詩 [SEP] 現在でも自作の漢詩集を著している陳舜臣等、漢詩創作の愛好家は存在しており、月刊誌大法輪では読者の投稿した漢詩が毎号掲載されている。また、自らは創らないのものの、書道の世界では、漢詩は読むもの、見るものとして基礎的な教養の一部となっている。また、学校教育でも、漢詩にふれることが多い。",
- "測量 [SEP] 位置、高さを求める測量。トラバース測量とも呼ばれる。測点間の測定方法は三角測量と同一。基準点から測点A、測点Aから測点B、測点Bから測点Cという具合に測点を結んで測量区域を多角形で示し、多角形の各辺の長さ・角度で位置関係を求める。",
- "ムハンマド・イブン＝アブドゥッラーフ [SEP] ムハンマド率いるイスラーム共同体は、周辺のベドウィン（アラブ遊牧民）の諸部族と同盟を結んだり、ムハンマドに敵対するマッカの隊商交易を妨害したりしながら、急速に勢力を拡大した。こうして両者の間で睨み合いが続いたが、ある時、マディーナ側はマッカの大規模な隊商を発見し、これを襲撃しようとした。しかし、それは事前にマッカ側に察知され、それを阻止するために倍以上の部隊を繰り出すが、バドルの泉の近くで両者は激突、マディーナ側が勝利した。これをバドルの戦いと呼び、以後イスラム教徒はこれを記念し、この月（9月、ラマダーン月）に断食をするようになった。"]
+["The theories developed in the 1930s and 1940s to integrate molecular genetics with Darwinian evolution are called the modern evolutionary synthesis, a term introduced by Julian Huxley. Evolutionary biologists subsequently refined this concept, such as George C. Williams' gene-centric view of evolution. He proposed an evolutionary concept of the gene as a unit of natural selection with the definition: \"that which segregates and recombines with appreciable frequency.\":24 In this view, the molecular gene transcribes as a unit, and the evolutionary gene inherits as a unit. Related ideas emphasizing the centrality of genes in evolution were popularized by Richard Dawkins.",
+ "Midway through the 19th century, the focus of geology shifted from description and classification to attempts to understand how the surface of the Earth had changed. The first comprehensive theories of mountain building were proposed during this period, as were the first modern theories of earthquakes and volcanoes. Louis Agassiz and others established the reality of continent-covering ice ages, and \"fluvialists\" like Andrew Crombie Ramsay argued that river valleys were formed, over millions of years by the rivers that flow through them. After the discovery of radioactivity, radiometric dating methods were developed, starting in the 20th century. Alfred Wegener's theory of \"continental drift\" was widely dismissed when he proposed it in the 1910s, but new data gathered in the 1950s and 1960s led to the theory of plate tectonics, which provided a plausible mechanism for it. Plate tectonics also provided a unified explanation for a wide range of seemingly unrelated geological phenomena. Since 1970 it has served as the unifying principle in geology.",
+ "While medieval pageants and festivals such as Corpus Christi were church-sanctioned, Carnival was also a manifestation of medieval folk culture. Many local Carnival customs are claimed to derive from local pre-Christian rituals, such as elaborate rites involving masked figures in the Swabian–Alemannic Fastnacht. However, evidence is insufficient to establish a direct origin from Saturnalia or other ancient festivals. No complete accounts of Saturnalia survive and the shared features of feasting, role reversals, temporary social equality, masks and permitted rule-breaking do not necessarily constitute a coherent festival or link these festivals. These similarities may represent a reservoir of cultural resources that can embody multiple meanings and functions. For example, Easter begins with the resurrection of Jesus, followed by a liminal period and ends with rebirth. Carnival reverses this as King Carnival comes to life, a liminal period follows before his death. Both feasts are calculated by the lunar calendar. Both Jesus and King Carnival may be seen as expiatory figures who make a gift to the people with their deaths. In the case of Jesus, the gift is eternal life in heaven and in the case of King Carnival, the acknowledgement that death is a necessary part of the cycle of life. Besides Christian anti-Judaism, the commonalities between church and Carnival rituals and imagery suggest a common root. Christ's passion is itself grotesque: Since early Christianity Christ is figured as the victim of summary judgement, is tortured and executed by Romans before a Jewish mob (\"His blood is on us and on our children!\" Matthew 27:24–25). Holy Week processions in Spain include crowds who vociferously insult the figure of Jesus. Irreverence, parody, degradation and laughter at a tragicomic effigy God can be seen as intensifications of the sacred order. In 1466, the Catholic Church under Pope Paul II revieved customs of the Saturnalia carnival: Jews were forced to race naked through the streets of the city of Rome. “Before they were to run, the Jews were richly fed, so as to make the race more difficult for them and at the same time more amusing for spectators. They ran… amid Rome’s taunting shrieks and peals of laughter, while the Holy Father stood upon a richly ornamented balcony and laughed heartily”, an eyewitness reports.",
+ "A number of studies have reported associations between pathogen load in an area and human behavior. Higher pathogen load is associated with decreased size of ethnic and religious groups in an area. This may be due high pathogen load favoring avoidance of other groups, which may reduce pathogen transmission, or a high pathogen load preventing the creation of large settlements and armies that enforce a common culture. Higher pathogen load is also associated with more restricted sexual behavior, which may reduce pathogen transmission. It also associated with higher preferences for health and attractiveness in mates. Higher fertility rates and shorter or less parental care per child is another association that may be a compensation for the higher mortality rate. There is also an association with polygyny which may be due to higher pathogen load, making selecting males with a high genetic resistance increasingly important. Higher pathogen load is also associated with more collectivism and less individualism, which may limit contacts with outside groups and infections. There are alternative explanations for at least some of the associations although some of these explanations may in turn ultimately be due to pathogen load. Thus, polygny may also be due to a lower male:female ratio in these areas but this may ultimately be due to male infants having increased mortality from infectious diseases. Another example is that poor socioeconomic factors may ultimately in part be due to high pathogen load preventing economic development.",
+ "Many insects possess very sensitive and, or specialized organs of perception. Some insects such as bees can perceive ultraviolet wavelengths, or detect polarized light, while the antennae of male moths can detect the pheromones of female moths over distances of many kilometers. The yellow paper wasp (Polistes versicolor) is known for its wagging movements as a form of communication within the colony; it can waggle with a frequency of 10.6±2.1 Hz (n=190). These wagging movements can signal the arrival of new material into the nest and aggression between workers can be used to stimulate others to increase foraging expeditions. There is a pronounced tendency for there to be a trade-off between visual acuity and chemical or tactile acuity, such that most insects with well-developed eyes have reduced or simple antennae, and vice versa. There are a variety of different mechanisms by which insects perceive sound, while the patterns are not universal, insects can generally hear sound if they can produce it. Different insect species can have varying hearing, though most insects can hear only a narrow range of frequencies related to the frequency of the sounds they can produce. Mosquitoes have been found to hear up to 2 kHz., and some grasshoppers can hear up to 50 kHz. Certain predatory and parasitic insects can detect the characteristic sounds made by their prey or hosts, respectively. For instance, some nocturnal moths can perceive the ultrasonic emissions of bats, which helps them avoid predation.:87–94 Insects that feed on blood have special sensory structures that can detect infrared emissions, and use them to home in on their hosts."]
 ```

@@ -1,0 +1,833 @@
+<!-- livebook:{"app_settings":{"slug":"antipop"},"persist_outputs":true} -->
+
+# How to create your own vector search engine in Elixir
+
+```elixir
+Mix.install(
+  [
+    {:bumblebee, "~> 0.3.0"},
+    {:exla, ">= 0.0.0"},
+    {:flow, "~> 1.2.4"},
+    {:req, "~> 0.3"},
+    {:jumanpp, "~> 0.1.0"},
+    {:ex_faiss, github: "elixir-nx/ex_faiss"}
+  ],
+  config: [nx: [default_backend: EXLA.Backend]],
+  system_env: %{"USE_LLVM_BREW" => "true"}
+)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+## Introduction
+
+Along with the emerging LLMs, vector search engines have become increasingly important nowadays. We will demonstrate how to create a DIY vector search engine to gain detailed knowledge about the technology.
+
+## Dataset
+
+We use JSQuAD distributed in [yahoojapan/JGLUE: JGLUE: Japanese General Language Understanding Evaluation](https://github.com/yahoojapan/JGLUE) to demonstrate our DIY vector search engine.
+
+```elixir
+dataset =
+  "https://raw.githubusercontent.com/yahoojapan/JGLUE/main/datasets/jsquad-v1.1/train-v1.1.json"
+  |> Req.get!()
+  |> Map.get(:body)
+  |> Jason.decode!()
+  |> Map.get("data")
+
+IO.puts("suppress the long long output...")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+suppress the long long output...
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+```elixir
+docs =
+  dataset
+  |> Enum.map(fn data ->
+    data
+    |> Map.get("paragraphs")
+    |> Enum.map(fn paragraph ->
+      paragraph |> Map.get("context")
+    end)
+  end)
+  |> List.flatten()
+  |> Enum.shuffle()
+  # to avoid crushing when predicting
+  |> Enum.take(50)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+["プロテスタント [SEP] プロテスタントは、宗教改革運動を始めとして、カトリック教会（または西方教会）から分離し、特に（広義の）福音主義を理念とするキリスト教諸教派を指す。日本ではカトリック教会（旧教）に対し、「新教」（しんきょう）ともいう。この諸教派はナザレのイエスをキリスト（救い主）として信じる宗教 である。イエス・キリストが、神の国の福音を説き、罪ある人間を救済するために自ら十字架にかけられ、復活したものと信じる。「父なる神」 と「その子キリスト」 と「聖霊」を唯一の神（三位一体・至聖三者）として信仰する。",
+ "アルゼンチンの歴史 [SEP] このような外国資本と移民による経済の拡大は、確かに繁栄をもたらしたものの、一方で鉄道や農牧業といった基幹産業が外国資本の手中にあることはアルゼンチンの経済的対外従属を深め、また、輸出経済のこのような形での成立は少数の大地主を基盤とする寡頭支配層の確立をもたらした。以降のアルゼンチンの歴史はこのような諸問題を如何にして解決するかが大きな焦点となる。",
+ "演繹 [SEP] 帰納に於ける前提と結論の導出関係が「蓋然的」に正しいとされるのみであるのに対し、演繹の導出関係は、その前提を認めるなら、「絶対的」「必然的」に正しい。したがって理論上は、前提が間違っていたり適切でない前提が用いられたりした場合には、誤った結論が導き出されることになる。近代では、演繹法とは記号論理学によって記述できる論法の事を指す。",
+ "徳川綱吉 [SEP] 家綱時代の大老・酒井忠清を廃し、自己の将軍職就任に功労があった堀田正俊を大老とした。その後、忠清は病死するが、酒井家を改易にしたい綱吉は大目付に「墓から掘り起こせ」などと命じて病死かどうかを異常なまでに詮議させたという。しかし証拠は出せず、結局は忠清の弟忠能が言いがかりをつけられて改易されるにとどまった。",
+ "世界の艦船 [SEP] その月に日本国内で竣工した新造商船を、写真付きで紹介する。海上公試時の旋回シーンを空撮したものが多く、1ページで2～4隻の割合で掲載される。自衛隊艦船や著名な商船の場合は本コーナーではなく、冒頭にて数ページを割いて写真記事の扱いとなる。冒頭に掲載される場合、起工時や進水時の状態である場合も多い。",
+ "ムハンマド・イブン＝アブドゥッラーフ [SEP] ムハンマド率いるイスラーム共同体は、周辺のベドウィン（アラブ遊牧民）の諸部族と同盟を結んだり、ムハンマドに敵対するマッカの隊商交易を妨害したりしながら、急速に勢力を拡大した。こうして両者の間で睨み合いが続いたが、ある時、マディーナ側はマッカの大規模な隊商を発見し、これを襲撃しようとした。しかし、それは事前にマッカ側に察知され、それを阻止するために倍以上の部隊を繰り出すが、バドルの泉の近くで両者は激突、マディーナ側が勝利した。これをバドルの戦いと呼び、以後イスラム教徒はこれを記念し、この月（9月、ラマダーン月）に断食をするようになった。",
+ "漢詩 [SEP] 現在でも自作の漢詩集を著している陳舜臣等、漢詩創作の愛好家は存在しており、月刊誌大法輪では読者の投稿した漢詩が毎号掲載されている。また、自らは創らないのものの、書道の世界では、漢詩は読むもの、見るものとして基礎的な教養の一部となっている。また、学校教育でも、漢詩にふれることが多い。",
+ "ジェノヴァ [SEP] 1797年、ナポレオン・ボナパルト率いるフランス軍に侵攻され、その傀儡国家であるリグリア共和国となり、1805年にはフランスに併合、ナポレオン失脚後のウィーン会議後も共和国であったため回復させてもらえず、ウィーン議定書によりサルデーニャ王国へ編入され、ジェノヴァは独立を失った。その後リソルジメントでサルデーニャ王国がイタリア半島統一を成し、イタリアの有力な都市の一つとして発展した。",
+ "東南アジア [SEP] 地域別に植民地化の特徴を見ていくと、まずジャワ・スマトラ周辺（大スンダ列島南部）では、19世紀初頭には特定の港湾や沿岸部などのみが支配されていたが、次第にイギリス・オランダ間の支配権競争が激しくなり始めた。オランダ政府は、ジャワ島でサトウキビ、コーヒー、タバコなどを強制的に栽培させ、現地の農民は搾取によって貧窮に追い込まれた。それに伴い、各地で抵抗戦争が19世紀末から20世紀初頭まで頻発した。",
+ "五胡十六国時代 [SEP] 一連の混乱に乗じて、東晋の将軍桓温は成漢を滅亡させて四川を東晋の版図に組み入れ、354年に北伐を行い前秦を攻めるが撃退された。桓温は一旦兵を引き上げるが、356年に再び北伐を行い、洛陽を占領した。",
+ "Microsoft_Windows_XP [SEP] 政府機関や企業向けの有償カスタムサポートは、2014年4月9日以降も提供される。実際に英国やオランダの政府が契約している。",
+ "日本赤十字社 [SEP] 受賞者には各都道府県で開催される、献血感謝のつどいに出席が出来る。招待状が届くので出席か欠席のどちらかを選ぶ必要がある。欠席者には下記の品が郵送される。",
+ "看護師 [SEP] 日本では看護職の改善に向けた取り組みが継続実施されており、1992年には看護師等の人材確保の促進に関する法律が成立した。同法では看護師養成に向けた新しい大学プログラムが作られ、教育の場が養成所から大学・大学院へと急速な転換を遂げるようになった。同プログラムによって日本の看護師の教育水準は向上しており、高度な専門知識と技術を持ち合わせる専門看護師(1996)や認定看護師(1997)なども生まれている。",
+ "ハンガリー王国 [SEP] その後1301年にアールパート朝が断絶すると選挙王制となり、1308年にナポリ王国のアンジュー家から王が出た（ハンガリー・アンジュー朝）。以後世襲王朝が続き、その間ハンガリー王だけでなくポーランド王も兼ねるようになったが1395年に断絶した。一方、14世紀になると東方からオスマン帝国が興隆し、コソボの戦い以後バルカン半島に進出してきた。神聖ローマ皇帝でハンガリー王のジキスムントは連合十字軍を組織し、対抗したが1396年ニコポリスの戦いで敗北した。",
+ "客室乗務員 [SEP] なお現在の日本においては、雇用形態の柔軟化を受けて、国内大手航空会社の中途採用では30代、経験者の有期限再雇用では40代での採用も可能になるよう変わりつつあるなど、かつては「若いこと」が採用の条件であったが、その様な状況は変わりつつある。現在は子持ちの客室乗務員が採用される事も珍しくもない。",
+ "ちびまる子ちゃん [SEP] コミックス版全17巻（りぼんマスコットコミックス）、文庫版全9巻、愛蔵版（特製ちびまる子ちゃん）全5巻、集英社ガールズリミックス版第9 - 10巻の全2巻、および『ちびまる子ちゃん-大野君と杉山君』『ちびまる子ちゃん -わたしの好きな歌』『ちびまる子ちゃん キミを忘れないよ』の映画原作3巻が刊行されている。文庫版は、レギュラー連載の最後となった「その114」（単行本14巻収録分）までの収録となったほか、『ももこのほのぼの劇場』が収録から外された。逆に、『大野君と杉山君』は文庫版の収録対象となった（第4巻に収録）。文庫版の電子書籍はフルカラー化（さきこの冬服など、配色がアニメと異なるケースもある）されている一方、『大野君と杉山君』は外されているほか、収録話数の区切りも紙版とは相違がある。",
+ "社会主義国 [SEP] 国家主席・国務委員長とは、世界における社会主義国の国家元首( 大統領）の役職名である。社会主義国の場合、国家元首は儀礼的な存在。",
+ "武器 [SEP] 13世紀後半の中国で誕生した銃が、15世紀前半のアナトリアで改良され、武器のあり方を大きく変化させた。中国で使用されていた火器が、13世紀のモンゴル帝国の遠征と交易によって中東へと伝播して、アナトリアで銃が発展したと考えられている。",
+ "ブルンジ [SEP] 議会は両院制で、上院と国民議会（下院）で構成される。上院は37議席以上54議席未満と規定され、全17県から間接選挙により選出される地方・民族代表（任期5年）と、歴代国家元首（終身任期）により構成される。国民議会は比例代表制に基づき選出された議員で構成され、定数は100議席を下回ってはならないとされている。任期は5年。得票率が2%を下回った政党や会派は議席を獲得できない。",
+ "漢文 [SEP] 黄河流域に発生した黄河文明は、言語を筆記する文字として漢字を生み、漢字で文字記録を行う文化を発達させた。ところが、漢字は異なる言語を用いる複数の文化集団によって受容されたため、漢字による文章を取り交わす圏内で共通の文語が形成されていった。これが、漢文の誕生であると言え、漢文を共通文語として用いる文化圏が、正に後の政治的統一中国の原型となった。最初の長期安定統一政権なる漢代には中央と地方との文書のやり取りの中で漢文法が確立し、以降中国ではこの漢代の伝統的な文法に従って、文章が書かれていくことになり、時代や地域によって口語は多様だったにもかかわらず、文語である漢文の文法上の変化は少なかった。普通「漢文」というと、このような伝統的な文法に従っているもの（正則漢文）を指す。",
+ "小田急小田原線 [SEP] 一部を除いて登戸駅 - 成城学園前駅間は緩行線、成城学園前駅 - 経堂駅間は急行線、経堂駅 - 代々木上原駅間は再び緩行線を使用し、登戸駅と成城学園前駅でそれぞれ新宿方面の快速急行と各駅停車に、経堂駅で千代田線方面の各駅停車に接続する。現状で唯一全列車が急行線と緩行線を両方使う種別である。",
+ "ベガルタ仙台 [SEP] ルヴァン杯は、グループステージを3勝2分1敗の勝ち点11・得失点差+4で2年連続の1位通過。プレーオフステージ で湘南と対戦し1勝1敗となるも、2戦合計スコア3-4で敗退（湘南は同大会で優勝を果たす）。",
+ "労働者派遣事業 [SEP] 人材派遣という言葉の意味が明確ではないことの行政上の実例として、商業登記先例が挙げられる。2006年までは、会社の目的登記の表現には具体性が要求されており、会社目的の登記先例を掲載した目的事例集によれば、「人材派遣業」という用語は具体性を欠くものとして登記不可とされていた。このため、登記実務上は、「労働者派遣事業」など労働者派遣法に則した表現を用いている。",
+ "天皇杯_JFA_全日本サッカー選手権大会 [SEP] 都道府県予選を兼ねる地方大会（都道府県サッカー選手権）の優勝チームまたは代表決定戦の勝利チームが本大会への出場権を得る。ただし、優勝チームが上記のシード枠での本大会出場となる場合は準優勝チームが繰り上がる（例：第81回の長崎大学）。第94回（2014年）までは高校・ユース世代（第2種登録チーム）の参加も認められていたが、規約の改正に伴い第2種登録チームの参加が第95回大会から認められなくなった。また、J3リーグに参加するチームにはシード権は与えられておらず、アマチュアシード枠に入る資格も有しないため、全て都道府県予選を制して都道府県代表として出場する必要がある。第52回から第75回までは地区予選は地域リーグのブロックごとに行われてきたが、マンネリ化やJFA登録チーム数の増加により狭き門となってきたため、第76回から都道府県単位で代表を選出する方式に変更された。",
+ "助詞 [SEP] 主に体言に付いて、文の中での意味関係（格）を表す。格助辞、格のくっつきとも言う。",
+ "使徒 [SEP] さらに、パウロ書簡は、使徒の基準を伝えている。パウロ書簡による使徒の定義は、復活した主イエスの証人であること主イエスに使徒として召されたことである。重要な点として、パウロは「使徒」としての権威を強調していることが挙げられる。このパウロの使徒としての権威は、使徒ペトロも認めている。次に、パウロは、使徒は12人（あるいは、自身を含めて13人）に限定していない。",
+ "立命館大学 [SEP] 同組織は中央委員会を基幹の会議体と位置づける。同会を形成する組織には様々ある。学生自治の中核を担う組織として、中央常任委員会・中央事務局(財務部・特別事業部・調査企画部を内包する)・学園振興委員会・全学自治会・代議員会・各学部自治会が存在する。また、課外三本部として体育会本部・学術本部・学芸総部本部が存在し、中央事業団体として応援団(チアリーダー部・吹奏楽部を内包する)・新聞社・放送局(RBC)が存在する。",
+ "ステンレス鋼 [SEP] 鍛造は、鋼塊にハンマやプレスで大きな力を加えて形を作る加工法で、同時に材料内部の欠陥を押しつぶし、結晶粒の微細化なども実現する。一般的には、鍛造前に鋼塊の加熱を行い、熱間または温間で鍛造する。オーステナイト系は、その著しい加工硬化のため、一般的には冷間鍛造されない。線材では、炭素・窒素を極低量化して軟質にし、ニッケルや銅を添加して加工硬化を抑えた鋼種のオーステナイト系を使って冷間鍛造することもある。",
+ "スペインの歴史 [SEP] イスラム帝国勢力のウマイヤ朝は、北アフリカにまで勢力を伸張させると、さらに711年にベルベル人を率いたターリク・イブン・ズィヤードのもとでジブラルタル海峡を渡ってイベリア半島へ上陸し、グアダレーテの戦いで西ゴート王国を滅ぼした。一時はサラゴサ、レオンなど北部の都市まで彼らによって征服され、カンタブリア山脈、ピレネー山脈付近を除くイベリア半島の大部分がイスラム勢力の支配下に入り、アル＝アンダルスとして716年よりウマイヤ朝の属州となった。",
+ "大阪ドーム [SEP] フェンスは2012年のシーズン開幕前に改修し、選手の安全確保を目的として「ソフトラバーフェンス」と呼ばれるクッション性の高いフェンスを採用すると共に、これまで15年間使ってきた水色から濃い紺色（オリックス・バファローズのチームカラー）に変更した。更に翌年には水色を残していたスタンド上部のフェンスも同色に塗り替えた。",
+ "Adobe_Creative_Suite [SEP] 2006年に発売。Adobe Video Collectionの後継にあたる映像編集に特化したシリーズ。本シリーズはWindows版のみの販売で、Macintoshには対応していない。既存製品をパッケージした形でのリリースである為、バージョン表記の統一はなされなかった。StandardとPremiumの2種類のパッケージが存在。",
+ "農民 [SEP] 古くから農民は様々な文献に登場するが、その多くにおいて、彼らは下等な欲求の表現者もしくは田舎臭い喜劇の演者として扱われ、peasantという言葉自体が軽蔑的な意味合いで用いられてきた側面がある。特にヨーロッパのキリスト教世界では、社会は「働く者（農民）」、「祈る者（聖職者）」、「闘う者（王侯・騎士）」の三階級に分かれるという理論が一般に受け入れられていた。後にフランスで生まれたアナール学派の歴史学者たちは、それまで軽視されてきた農民階層の重要性を指摘し始めた。フェルナン・ブローデルは、その主要著書の一つ『物質文明・経済・資本主義』の第一巻を『15-18世紀 日常性の構造』と題し、市場経済より低層に、巨大で目に見えづらい世界が確かに存在していたことを明らかにした。",
+ "松本清張 [SEP] ベトナム戦争に際して、『ワシントン・ポスト』紙に掲載するベトナム反戦広告募集の呼びかけ人の一人となり、1967年4月3日に掲載された。また、「ベ平連」の中心人物の一人であった鶴見俊輔が清張に資金の不足を訴えた際、清張は「鶴見が驚くほどの額」を寄付した。",
+ "広島市 [SEP] 。現在の空港通り最南端は長束より約9kmの距離である。",
+ "ステンレス鋼 [SEP] ドーム球場やコンベンション・センターのような大型建造物の屋根も、メンテナンスフリーや美観の向上のために、ステンレス鋼使用が浸透している。屋根は日射や気温による温度変化が起こるため、大型の屋根では熱膨張率の低いフェライト系の使用が望ましい。海浜地区などの腐食が厳しい場所に建てられる場合は、高耐食ステンレス鋼や塗装ステンレス鋼が適用される。",
+ "測量 [SEP] 位置、高さを求める測量。トラバース測量とも呼ばれる。測点間の測定方法は三角測量と同一。基準点から測点A、測点Aから測点B、測点Bから測点Cという具合に測点を結んで測量区域を多角形で示し、多角形の各辺の長さ・角度で位置関係を求める。",
+ "ホテル [SEP] 2014年10月26日付の中国旅游新聞網によると、旅行会社エクスペディアのヨーロッパ12か国に対する調査で、最も歓迎する観光客は日本人で2位はアメリカ人、スイス人と続き、逆に歓迎されないのはフランス人、インド人、中国人（中華人民共和国）だった。特に日本人はチェックアウト時の部屋の状態の良さや礼儀正しさ、好奇心、現地の習慣を理解しているなどの点で観光客の模範であるとされた。調査によると、かつては無遠慮、がさつ、やかましいなどの点で評価の低かった米国人のマナーが改善され、優秀な観光客と評価され、フランス人、中国人、ドイツ人はケチな観光客と評された。またファッションセンスの良さで評価されたのは、フランス人、イタリア人、スペイン人で、身だしなみに気を使わない印象を与えたのは、旅での動きやすさや快適さを重視するドイツ人、イギリス人、アメリカ人だった。",
+ "カール・マルクス [SEP] 酒好きであり、またヘビースモーカーだった。マルクスがラファルグに語ったところによると「資本論は私がそれを書く時に吸った葉巻代にすらならなかった」という。家計の節約のために安物で質の悪い葉巻を吸い、体調を壊して医者に止められている。",
+ "東海道新幹線 [SEP] 1996年（平成8年）3月改正より一部列車が、2003年（平成15年）10月改正で全列車が270 km/h運転となった。さらに2015年（平成27年）3月改正より下り列車1本が285 km/h運転となっている。",
+ "ナノテクノロジー [SEP] 生体内には分子レベルの機械システムがあることは明らかだが、人工の分子機械はまだ研究が始まったばかりである。人工の分子機械の研究ではカリフォルニア大学バークレー校とローレンス・バークレー国立研究所の の研究が知られている。彼らは外部から印加する電圧で制御できる3種類の分子デバイスの試作に成功している。",
+ "天皇杯_JFA_全日本サッカー選手権大会 [SEP] その後、過密日程の緩和の観点から、第97回（2017年度）は4月開幕、第98回（2018年度）以降は5月開幕となっており、概ね以下のような日程が組まれている。なお、他の公式戦（リーグ戦やAFCチャンピオンズリーグ・FIFAクラブワールドカップなど）と日程が重複または近接する場合には、当該試合に関わるチームの天皇杯の試合は予備日（基本的に当該試合日の翌水曜日または翌土曜日）に開催される。",
+ "ブータン [SEP] 陸軍の装備品は迫撃砲や分隊支援火器等の小火器のみである。砲兵戦力および機甲戦力は有さず、装甲兵員輸送車も一部の部隊に若干数が配備されるにとどまる。小火器は、84ミリ迫撃砲、AK-101、FN FAL、H&amp;K G3、FN ブローニング・ハイパワーの装備が確認されている。",
+ "メキシコの歴史 [SEP] またスペインの植民地支配システムはエンコミエンダ制と呼ばれ、植民者に征服地の統治を委任する内容だったため、恣意的かつ搾取収奪的統治が行われた。また、スペイン人による先住民への苦役など苛酷な支配、従来の食糧生産システムの破壊による飢餓などが、先住民の死亡率を高めた。カトリック司祭であったラス・カサスはこのような事態を憂慮して、スペイン王室へ直訴したため、1550年には「バリャドリード論争」とよばれる植民地問題に関する一連の議論が交わされた。",
+ "マヤ文明 [SEP] 他の遺跡にも独自の時期区分がありつつも比較検討のためにワシャクトゥンの時期区分名が使用される。ただし、ユカタン半島北部やグアテマラ高地の遺跡には適用されない。",
+ "小田急小田原線 [SEP] 2018年3月17日のダイヤ改正より千代田線直通列車が朝夕を中心に設定された。新松田駅 - 小田原駅間の日中の運行本数は1時間3本に削減された。",
+ "エリザベス1世 [SEP] 国内に急速に不満が広まり、多くの人々がメアリーの宗教政策に対抗する存在としてエリザベスに注目した。そして、1554年1月から2月にかけてイングランドとウェールズの各地でトマス・ワイアットに率いられた反乱が発生する（ワイアットの乱）。",
+ "大阪ドーム [SEP] 現在は全てのビジョンにおいて表示されていない。ただし、阪神が主催ゲームを行う場合には、ビジョンで案内されている。",
+ "アメリカ陸軍 [SEP] 米国陸軍は、アメリカの武官組織であり、国防総省の3つの軍事部門のうちの1つである陸軍省に属している。米国陸軍は、上級任命の文官である陸軍長官（SECARMY）と、軍の最高責任者である陸軍参謀長（CSA）が指揮を執っており、統合参謀本部のメンバーでもある。陸軍は最大の兵科であり、2020年度の正規軍（USA）の末端兵力は480,893人、陸軍州兵（ARNG）は336,129人、米陸軍予備役（USAR）は188,703人、米陸軍の複合コンポーネント兵力は1,005,725人と予測されている。軍隊の一部門であるアメリカ陸軍の使命は、「戦闘指揮官を支援し、あらゆる軍事作戦と紛争の範囲において、迅速かつ持続的な陸軍支配を提供することにより、わが国の戦争を戦い、勝利すること」である。陸軍は、世界中の紛争に参加し、米国の主要な地上攻撃・防御部隊となっている。",
+ "水素イオン指数 [SEP] 計量法におけるピーエッチは、濃度の計量単位であり、“モル毎リットルで表した水素イオン濃度の値に、活動度係数を乗じた値の逆数の常用対数”である。計量法では、pHの読みが「ピーエッチ」という位置付けではなく、「ピーエッチ」そのものが計量単位であり、ピーエッチの単位記号が「pH」である。計量法・計量単位令・計量単位規則では、「水素イオン指数」と「水素イオン濃度指数」の2語は用いられていない。",
+ "ウクライナ [SEP] キエフ総主教庁・ウクライナ正教会の教会法上の合法性を認めている他国の正教会は長らく存在していなかったが、キエフ総主教庁は教会法解釈・歴史認識につき主張をしつつ、自らの合法性の承認を得るべく様々な活動を行っており、信徒数の上でもウクライナにおける最大の教会となっている。なお、懸案だったロシア正教会からの独立問題については、2014年にロシアがクリミア半島を併合したことによる反ロ感情の高まりを受け、2018年10月11日にコンスタンティノープル総主教庁から独立の承認を得ることに成功した。"]
+```
+
+The code below takes a long time, because `Jumanpp.parse!` calls the `jumanpp` command in a shell context.
+
+```elixir
+preprocessed =
+  docs
+  |> Flow.from_enumerable(stages: 10)
+  |> Flow.map(fn doc ->
+    doc
+    |> String.replace(~r/^.+ \[SEP\] /, "")
+    |> Jumanpp.parse!()
+    |> Enum.map(fn token ->
+      token |> Map.get(:surface)
+    end)
+    |> Enum.join(" ")
+  end)
+  |> Enum.to_list()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+["プロテスタント は 、 宗教 改革 運動 を 始め と して 、 カトリック 教会 （ または 西方 教会 ） から 分離 し 、 特に （ 広義 の ） 福音 主義 を 理念 と する キリスト教 諸 教 派 を 指す 。 日本 @ で は カトリック 教会 （ 旧教 ） に 対し 、 「 新教 」 （ しん @ @ @ @ @ @ @ きょう ） と も いう 。 この 諸 教 派 は ナザレ の イエス を キリスト （ 救い主 ） と して 信じる 宗教 \\ である 。 イエス ・ キリスト が 、 神 の 国 @ の 福音 を 説き 、 罪 @ ある 人間 を 救済 する ため に 自ら @ 十字架 に かけ @ @ @ @ @ られ 、 復活 した もの と 信じる 。 「 父 なる 神 」 \\ と 「 その 子 @ キリスト 」 \\ と 「 聖霊 」 を 唯一 の 神 （ 三位一体 ・ 至聖三者 ） と して 信仰 する 。",
+ "このような 外国 資本 と 移民 に よる @ @ @ 経済 の 拡大 は 、 確かに 繁栄 を もたらした もの の 、 一方 で 鉄道 や 農牧 業 と いった 基幹 産業 が 外国 資本 の 手中 に ある こと は アルゼンチン の 経済 的 対外 従属 を 深め 、 また 、 輸出 経済 の このような 形 @ @ で の 成立 は 少数 の 大地主 を 基盤 と する 寡頭 支配 層 の 確立 を もたらした 。 以降 の アルゼンチン の 歴史 は このような 諸 問題 を 如何に して 解決 する か が 大きな 焦点 と なる @ 。",
+ "帰納 に 於 け る 前提 と 結論 の 導出 @ 関係 が 「 蓋然 的 」 に 正しい と さ れる のみ である の に 対し 、 演繹 の 導出 @ 関係 は 、 その 前提 を 認める なら 、 「 絶対 的 」 「 必然 的 」 に 正しい 。 したがって 理論 上 は 、 前提 が 間違って いたり 適切で ない 前提 が 用い られたり した 場合 に は 、 誤った 結論 が 導き 出さ れる こと に なる @ 。 近代 で は 、 演繹 法 と は 記号 論理 学 に よって @ @ @ 記述 できる 論法 の 事 @ を 指す 。",
+ "家綱 時代 の 大老 ・ 酒井 忠清 を 廃し 、 自己 の 将軍 職 就任 に 功労 が あった 堀田 @ 正俊 を 大老 と した 。 その後 、 忠清 は 病死 する が 、 酒井 家 を 改易 に し たい 綱吉 は 大 @ 目付 に 「 墓 から 掘り起こせ 」 など と 命じて 病死 か どう か を 異常な まで に 詮議 さ せた と いう 。 しかし 証拠 は 出せ ず 、 結局 は 忠清 の 弟 忠能 が 言いがかり を つけ @ @ @ @ @ @ @ @ @ られて 改易 さ れる に とどまった 。",
+ "その 月 @ に 日本 @ 国 @ 内 で 竣工 した 新造 商船 を 、 写真 付き で 紹介 する 。 海上 公試 時 @ の 旋回 シーン を 空撮 した もの が 多く 、 1 ページ で 2 ～ 4 隻 の 割合 で 掲載 さ れる 。 自衛 隊 艦船 や 著名な 商船 の 場合 は 本 コーナー で は なく 、 冒頭 にて 数 ページ を 割いて 写真 記事 の 扱い と なる @ 。 冒頭 に 掲載 さ れる 場合 、 起工 時 や 進水 時 の 状態 である 場合 も 多い 。",
+ "ムハンマド 率いる イスラーム 共同 体 @ は 、 周辺 の ベドウィン （ アラブ @ 遊牧 民 @ ） の 諸 部族 と 同盟 を 結んだり 、 ムハンマド に 敵対 する マッカ の 隊商 交易 を 妨害 したり し ながら 、 急速に 勢力 を 拡大 した 。 こうして 両者 の 間 で 睨み合い が 続いた が 、 ある 時 、 マディーナ 側 は マッカ の 大 @ 規模 な 隊商 を 発見 し 、 これ を 襲撃 しよう と した 。 しかし 、 それ は 事前 に マッカ 側 に 察知 さ れ 、 それ を 阻止 する ため に 倍 以上 の 部隊 を 繰り出す が 、 バドル の 泉 @ の 近く で 両者 は 激突 、 マディーナ 側 が 勝利 した 。 これ を バドル の 戦い と 呼び 、 以後 イスラム 教徒 は これ を 記念 し 、 この 月 @ （ 9 月 、 ラマダーン 月 @ ） に 断食 を する ように なった 。",
+ "現在 でも 自作 の 漢詩 集 を 著して いる 陳 舜臣 等 、 漢詩 創作 の 愛好 家 は 存在 して おり 、 月刊 誌 大 法輪 で は 読者 の 投稿 した 漢詩 が 毎 号 掲載 さ れて いる 。 また 、 自ら @ は 創ら ない の もの の 、 書道 の 世界 で は 、 漢詩 は 読む もの 、 見る もの と して 基礎 的な 教養 の 一部 と なって @ いる 。 また 、 学校 教育 でも 、 漢詩 に ふれる @ @ こと が 多い 。",
+ "1797 年 、 ナポレオン ・ ボナパルト 率いる フランス 軍 に 侵攻 さ れ 、 その 傀儡 国家 である リグリア 共和 国 @ と なり @ 、 1805 年 に は フランス に 併合 、 ナポレオン 失脚 後 の ウィーン 会議 後 も 共和 国 @ であった ため 回復 さ せて もらえ ず 、 ウィーン 議定書 に より @ @ @ サルデーニャ 王国 へ 編入 さ れ 、 ジェノヴァ は 独立 を 失った 。 その後 リソルジメント で サルデーニャ 王国 が イタリア 半島 統一 を 成し 、 イタリア の 有力な 都市 の 一 つ と して 発展 した 。",
+ "地域 別 に 植民 地 化 の 特徴 を 見て いく と 、 まず ジャワ ・ スマトラ 周辺 （ 大 @ スンダ列島 南部 ） で は 、 19 世紀 初頭 に は 特定 の 港湾 や 沿岸 部 など のみ が 支配 さ れて いた が 、 次第に イギリス ・ オランダ 間 の 支配 権 競争 が 激しく なり 始めた 。 オランダ 政府 は 、 ジャワ 島 @ で サトウキビ 、 コーヒー 、 タバコ など を 強制 的に 栽培 さ せ 、 現地 の 農民 は 搾取 に よって @ @ @ 貧窮 に 追い 込ま れた 。 それ に 伴い 、 各地 で 抵抗 戦争 が 19 世紀 末 から 20 世紀 初頭 まで 頻発 した 。",
+ "一連の 混乱 に 乗じて 、 東晋 の 将軍 桓 温 @ @ は 成漢 を 滅亡 さ せて 四川 を 東晋 の 版図 @ に 組み入れ 、 354 年 に 北伐 を 行い 前秦 を 攻める が 撃退 さ れた 。 桓 温 @ @ は 一旦 兵 を 引き上げる が 、 356 年 に 再び 北伐 を 行い 、 洛陽 を 占領 した 。",
+ "政府 機関 や 企業 向け の 有償 カスタム サポート は 、 2014 年 4 月 9 日 以降 も 提供 さ れる 。 実際 に 英国 や オランダ の 政府 が 契約 して いる 。",
+ "受賞 者 に は 各 都道府県 で 開催 さ れる 、 献血 感謝 の つどい に 出席 が 出来る 。 招待 状 が 届く ので 出席 か 欠席 の どちら か を 選ぶ 必要 が ある 。 欠席 者 に は 下記 の 品 @ が 郵送 さ れる 。",
+ "日本 @ で は 看護 職 の 改善 に 向けた @ 取り組み が 継続 実施 さ れて おり 、 1992 年 に は 看護 師 等 の 人材 確保 の 促進 に 関する 法律 が 成立 した 。 同 法 で は 看護 師 養成 に 向けた @ 新しい 大学 プログラム が 作ら れ 、 教育 の 場 @ が 養成 所 @ から 大学 ・ 大学院 へ と 急速な 転換 を 遂げる ように なった 。 同 プログラム に よって @ @ @ 日本 @ の 看護 師 の 教育 水準 は 向上 して おり 、 高度な 専門 知識 と 技術 を 持ち 合わせる 専門 看護 師 ( 1996 ) や 認定 看護 師 ( 1997 ) など も 生まれて いる 。",
+ "その後 1301 年 に アールパート 朝 が 断絶 する と 選挙 王制 と なり @ 、 1308 年 に ナポリ 王国 の アンジュー 家 から 王 が 出た （ ハンガリー ・ アンジュー 朝 ） 。 以後 世襲 王朝 が 続き 、 その 間 ハンガリー 王 だけ で なく ポーランド 王 も 兼ねる ように なった が 1395 年 に 断絶 した 。 一方 、 14 世紀 に なる @ と 東方 から オスマン 帝国 が 興隆 し 、 コソボ の 戦い 以後 バルカン 半島 に 進出 して きた 。 神聖 ローマ 皇帝 で ハンガリー 王 の ジキスムント は 連合 十字 軍 を 組織 し 、 対抗 した が 1396 年 ニコポリス の 戦い で 敗北 した 。",
+ "なお 現在 の 日本 @ に おいて は 、 雇用 形態 の 柔軟 化 を 受けて 、 国 @ 内 大手 航空 会社 の 中途 採用 で は 30 代 、 経験 者 の 有 期限 再 雇用 で は 40 代 で の 採用 も 可能に なる よう 変わり つつ ある など 、 かつて は 「 若い こと 」 が 採用 の 条件 であった が 、 その様な 状況 は 変わり つつ ある 。 現在 は 子持ち の 客室 乗務 員 が 採用 さ れる 事 @ も 珍しく も ない 。",
+ "コミックス 版 全 17 巻 （ りぼん マスコットコミックス ） 、 文庫 版 全 9 巻 、 愛蔵 版 （ 特製 ちび まる子 ちゃん ） 全 5 巻 、 集 英 社 @ ガールズリミックス 版 第 9 \\ \\ 10 巻 の 全 2 巻 、 および 『 ちび まる子 ちゃん - 大 野 君 と 杉山 君 』 『 ちび まる子 ちゃん \\ わたし の 好きな 歌 @ 』 『 ちび まる子 ちゃん \\ キミ を 忘れ ない よ 』 の 映画 原作 3 巻 が 刊行 さ れて いる 。 文庫 版 は 、 レギュラー 連載 の 最後 と なった @ 「 その 114 」 （ 単行本 14 巻 収録 分 ） まで の 収録 と なった @ ほか 、 『 ももこ の ほのぼの 劇場 』 が 収録 から 外さ れた 。 逆に 、 『 大野 @ @ @ 君 と 杉山 君 』 は 文庫 版 の 収録 対象 と なった @ （ 第 4 巻 に 収録 ） 。 文庫 版 の 電子 書籍 は フルカラー 化 （ さきこ の 冬服 @ など 、 配色 が アニメ と 異なる ケース も ある ） さ れて いる 一方 、 『 大野 @ @ @ 君 と 杉山 君 』 は 外さ れて いる ほか 、 収録 話 数 の 区切り も 紙 @ 版 と は 相違 が ある 。",
+ "国家 主席 ・ 国務 委員 長 と は 、 世界 に おける 社会 主義 国 @ の 国家 元首 ( \\ 大統領 ） の 役職 名 @ である 。 社会 主義 国 @ の 場合 、 国家 元首 は 儀礼 的な 存在 。",
+ "13 世紀 後半 の 中国 @ で 誕生 した 銃 が 、 15 世紀 前半 の アナトリア で 改良 さ れ 、 武器 の あり 方 を 大きく 変化 さ せた 。 中国 @ で 使用 さ れて いた 火器 が 、 13 世紀 の モンゴル 帝国 の 遠征 と 交易 に よって @ @ @ 中東 へ と 伝播 して 、 アナトリア で 銃 が 発展 した と 考え られて いる 。",
+ "議会 は 両院 制 で 、 上院 と 国民 議会 （ 下院 ） で 構成 さ れる 。 上院 は 37 議席 以上 54 議席 未満 と 規定 さ れ 、 全 17 県 から 間接 選挙 に より @ @ @ 選出 さ れる 地方 ・ 民族 代表 （ 任期 5 年 ） と 、 歴代 国家 元首 （ 終身 任期 ） に より @ @ @ 構成 さ れる 。 国民 議会 は 比例 代表 制 に 基づき 選出 さ れた 議員 で 構成 さ れ 、 定数 は 100 議席 を 下回って は なら @ ない と さ れて いる 。 任期 は 5 年 。 得票 率 が 2 % を 下回った 政党 や 会派 は 議席 を 獲得 でき ない 。",
+ "黄河 流域 に 発生 した 黄河 文明 は 、 言語 を 筆記 する 文字 と して 漢字 を 生み 、 漢字 で 文字 記録 を 行う 文化 を 発達 さ せた 。 ところが 、 漢字 は 異なる 言語 を 用いる 複数 の 文化 集団 に よって @ @ @ 受容 さ れた ため 、 漢字 に よる @ @ @ 文章 を 取り交わす 圏 内 で 共通の 文語 が 形成 さ れて いった 。 これ が 、 漢文 の 誕生 である と 言え 、 漢文 を 共通 文語 と して 用いる 文化 圏 が 、 正に 後 の 政治 的 統一 中国 @ の 原型 と なった @ 。 最初の 長期 安定 統一 政権 なる @ 漢 代 に は 中央 と 地方 と の 文書 の やり取り の 中 で 漢文 法 が 確立 し 、 以降 中国 @ で は この 漢 代 の 伝統 的な 文法 に 従って 、 文章 が 書か れて いく こと に なり @ 、 時代 や 地域 に よって @ @ @ 口語 は 多様だった に も かかわら ず 、 文語 である 漢文 の 文法 上 の 変化 は 少なかった 。 普通 「 漢文 」 と いう と 、 このような 伝統 的な 文法 に 従って いる もの （ 正則 漢文 ） を 指す 。",
+ "一部 を 除いて 登戸 駅 \\ \\ 成城 学園前 駅 間 は 緩行 線 、 成城 学園前 駅 \\ \\ 経堂 駅 間 は 急行 線 、 経堂 駅 \\ \\ 代々木上原 駅 間 は 再び 緩行 線 を 使用 し 、 登戸 駅 と 成城 学園前 駅 で それぞれ 新宿 方面 の 快速 急行 と 各駅 停車 に 、 経堂 駅 で 千代田 @ 線 方面 の 各駅 停車 に 接続 する 。 現状 で 唯一 全 列車 が 急行 線 と 緩行 線 を 両方 使う 種別 である 。",
+ "ルヴァン 杯 は 、 グループ ステージ を 3 勝 2 分 1 敗 の 勝ち 点 11・ 得失 点差 + 4 で 2 年 連続 の 1 位 通過 。 プレーオフ ステージ \\ で 湘南 と 対戦 し 1 勝 1 敗 と なる @ も 、 2 戦 合計 スコア 3 - 4 で 敗退 （ 湘南 は 同 大会 で 優勝 を 果たす ） 。",
+ "人材 派遣 と いう 言葉 の 意味 が 明確で は ない こと の 行政 上 の 実例 と して 、 商業 登記 先例 が 挙げ られる 。 2006 年 まで は 、 会社 の 目的 登記 の 表現 に は 具体 性 が 要求 さ れて おり 、 会社 目的 の 登記 先例 を 掲載 した 目的 事例 集 に よれば @ @ @ 、 「 人材 派遣 業 」 と いう 用語 は 具体 性 を 欠く もの と して 登記 不可 と さ れて いた 。 この ため 、 登記 実務 上 は 、 「 労働 者 派遣 事業 」 など 労働 者 派遣 法 に 則した 表現 を 用いて いる 。",
+ "都道府県 予選 を 兼ねる 地方 大会 （ 都道府県 サッカー 選手 権 ） の 優勝 チーム または 代表 決定 戦 @ の 勝利 チーム が 本 大会 へ の 出場 権 を 得る 。 ただし 、 優勝 チーム が 上記 の シード 枠 で の 本 大会 出場 と なる @ 場合 は 準 優勝 チーム が 繰り上がる （ 例 ： 第 81 回 の 長崎 @ @ 大学 @ ） 。 第 94 回 （ 2014 年 ） まで は 高校 ・ ユース 世代 （ 第 2 種 @ 登録 チーム ） の 参加 も 認め られて いた が 、 規約 の 改正 に 伴い 第 2 種 @ 登録 チーム の 参加 が 第 95 回 大会 から 認め られ なく なった 。 また 、 J 3 リーグ に 参加 する チーム に は シード 権 は 与え られて おら ず 、 アマチュアシード 枠 に 入る 資格 も 有し ない ため 、 全て 都道府県 予選 を 制して 都道府県 代表 と して 出場 する 必要 が ある 。 第 52 回 から 第 75 回 まで は 地区 予選 は 地域 リーグ の ブロック ごと に 行わ れて きた が 、 マンネリ 化 や JFA 登録 チーム 数 の 増加 に より @ @ @ 狭き 門 と なって @ きた ため 、 第 76 回 から 都道府県 単位 で 代表 を 選出 する 方式 に 変更 さ れた 。",
+ "主に 体言 に 付いて 、 文 の 中 で の 意味 関係 （ 格 ） を 表す @ 。 格 助辞 @ 、 格 の くっつき と も 言う 。",
+ "さらに 、 パウロ 書簡 は 、 使徒 の 基準 を 伝えて いる 。 パウロ 書簡 に よる @ @ @ 使徒 の 定義 は 、 復活 した 主 イエス の 証人 である こと 主 イエス に 使徒 と して 召さ れた こと である 。 重要な 点 と して 、 パウロ は 「 使徒 」 と して の 権威 を 強調 して いる こと が 挙げ られる 。 この パウロ の 使徒 と して の 権威 は 、 使徒 ペトロ も 認めて いる 。 次に 、 パウロ は 、 使徒 は 12 人 （ あるいは 、 自身 を 含めて 13 人 ） に 限定 して い ない 。",
+ "同 組織 は 中央 委員 会 を 基幹 の 会議 体 @ と 位置づける 。 同 会 を 形成 する 組織 に は 様々 ある 。 学生 自治 の 中核 を 担う 組織 と して 、 中央 常任 委員 会 ・ 中央 事務 局 ( 財務 部 ・ 特別 事業 部 ・ 調査 企画 部 を 内包 する ) ・ 学園 振興 委員 会 ・ 全 学 自治 会 ・ 代議員 会 ・ 各 学部 自治 会 が 存在 する 。 また 、 課外 三 本部 と して 体育 会 本部 ・ 学術 本部 ・ 学芸 総 部 本部 が 存在 し 、 中央 事業 団体 と して 応援 団 ( チア リーダー 部 ・ 吹奏 楽部 を 内包 する ) ・ 新聞 社 @ ・ 放送 局 ( RBC ) が 存在 する 。",
+ "鍛造 は 、 鋼塊 に ハンマ や プレス で 大きな 力 @ を 加えて 形 @ @ を 作る 加工 法 で 、 同時に 材料 内部 の 欠陥 を 押しつぶし 、 結晶 粒 の 微細 化 など も 実現 する 。 一般 的に は 、 鍛造 前 に 鋼塊 の 加熱 を 行い 、 熱 間 または 温 @ @ 間 で 鍛造 する 。 オーステナイト 系 は 、 その 著しい 加工 硬化 の ため 、 一般 的に は 冷間鍛造 さ れ ない 。 線材 で は 、 炭素 ・ 窒素 を 極 低 量 化 して 軟質 に し 、 ニッケル や 銅 を 添加 して 加工 硬化 を 抑えた 鋼種 の オーステナイト 系 を 使って 冷間鍛造 する こと も ある 。",
+ "イスラム 帝国 勢力 の ウマイヤ 朝 は 、 北 アフリカ に まで 勢力 を 伸張 さ せる と 、 さらに 711 年 に ベル ベル 人 @ を 率いた ターリク ・ イブン ・ ズィヤード の もと @ で ジブラルタル 海峡 を 渡って イベリア 半島 へ 上陸 し 、 グアダレーテ の 戦い で 西 ゴート 王国 を 滅ぼした 。 一 時 は サラゴサ 、 レオン など 北部 の 都市 まで 彼 ら に よって @ @ @ 征服 さ れ 、 カンタブリア 山脈 、 ピレネー山脈 付近 を 除く イベリア 半島 の 大部分 が イスラム 勢力 の 支配 下 に 入り 、 アル ＝ アンダルス と して 716 年 より ウマイヤ 朝 の 属 州 と なった @ 。",
+ "フェンス は 2012 年 の シーズン 開幕 前 に 改修 し 、 選手 の 安全 確保 を 目的 と して 「 ソフト ラバー フェンス 」 と 呼ば れる クッション 性 の 高い フェンス を 採用 する と 共に 、 これ まで 15 年間 使って きた 水色 から 濃い 紺色 （ オリックス ・ バファローズ の チーム カラー ） に 変更 した 。 更に 翌年 に は 水色 を 残して いた スタンド 上部 の フェンス も 同 色 @ に 塗り 替えた 。",
+ "2006 年 に 発売 。 Adobe \\ i d e o \\ Collection の 後継 に あたる 映像 編集 に 特化 @ した シリーズ 。 本 シリーズ は Windows 版 のみ の 販売 で 、 Macintosh に は 対応 して い ない 。 既存 製品 を パッケージ した 形 @ @ で の リリース である 為 、 バージョン 表記 の 統一 は なされ なかった 。 Standard と Premium の 2 種類 の パッケージ が 存在 。",
+ "古くから 農民 は 様々な 文献 に 登場 する が 、 その 多く に おいて 、 彼 ら は 下等な 欲求 の 表現 者 もしくは 田舎 臭い 喜劇 の 演者 と して 扱わ れ 、 peasant と いう 言葉 自体 が 軽蔑 的な 意味合い で 用い られて きた 側面 が ある 。 特に ヨーロッパ の キリスト教 世界 で は 、 社会 は 「 働く 者 （ 農民 ） 」 、 「 祈る 者 （ 聖職 者 ） 」 、 「 闘う 者 （ 王侯 ・ 騎士 ） 」 の 三 階級 に 分かれる と いう 理論 が 一般に 受け入れ られて いた 。 後 に フランス で 生まれた アナール 学 派 の 歴史 学者 たち は 、 それ まで 軽視 さ れて きた 農民 階層 の 重要 性 を 指摘 し 始めた 。 フェルナン ・ ブローデル は 、 その 主要 著書 の 一 つ 『 物質 文明 ・ 経済 ・ 資本 主義 』 の 第 一 巻 を 『 15 - 18 世紀 \\ 日常 性 の 構造 』 と 題し 、 市場 @ 経済 より 低層 に 、 巨大で 目 に 見え づらい 世界 が 確かに 存在 して いた こと を 明らかに した 。",
+ "ベトナム 戦争 に 際して 、 『 ワシントン @ ・ ポスト 』 紙 @ に 掲載 する ベトナム 反戦 広告 募集 の 呼びかけ 人 @ の 一 人 と なり @ 、 1967 年 4 月 3 日 に 掲載 さ れた 。 また 、 「 ベ平連 」 の 中心 人物 の 一 人 であった 鶴見 @ @ 俊輔 が 清張 に 資金 の 不足 を 訴えた 際 、 清張 は 「 鶴見 が 驚く ほど の 額 」 を 寄付 した 。",
+ "。 現在 の 空港 通り 最 南端 は 長束 より 約 9 km の 距離 である 。",
+ "ドーム 球場 や コンベンション ・ センター の ような 大型 建造 物 @ の 屋根 も 、 メンテナンス フリーや 美観 の 向上 の ため に 、 ステンレス 鋼 使用 が 浸透 して いる 。 屋根 は 日射 @ や 気温 に よる @ @ @ 温度 変化 が 起こる ため 、 大型の 屋根 で は 熱 膨張 率 の 低い フェライト 系 の 使用 が 望ましい 。 海浜 地区 など の 腐食 が 厳しい 場所 に 建て @ られる 場合 は 、 高 耐 食 ステンレス 鋼 や 塗装 ステンレス 鋼 が 適用 さ れる 。",
+ "位置 、 高 さ を 求める 測量 。 トラバース 測量 と も 呼ば れる 。 測点 間 の 測定 方法 は 三角 測量 と 同一 。 基準 点 から 測点 A 、 測点 A から 測点 B 、 測点 B から 測点 C と いう 具合 に 測点 を 結んで 測量 区域 を 多角形 で 示し 、 多角形 の 各 辺 の 長 さ ・ 角度 で 位置 関係 を 求める 。",
+ "2014 年 10 月 26 日 付 の 中国 @ 旅 游 新聞 網 @ に よる @ @ @ と 、 旅行 会社 エクス ペディア の ヨーロッパ 12 か国 に 対する 調査 で 、 最も 歓迎 する 観光 客 は 日本 @ 人 @ で 2 位 は アメリカ 人 @ 、 スイス 人 @ と 続き 、 逆に 歓迎 さ れ ない の は フランス 人 @ 、 インド 人 @ 、 中国 @ 人 @ （ 中華人民共和国 ） だった 。 特に 日本 @ 人 @ は チェックアウト 時 @ の 部屋 の 状態 の 良 さ や 礼儀正し さ 、 好奇心 、 現地 の 習慣 を 理解 して いる など の 点 で 観光 客 の 模範 である と さ れた 。 調査 に よる @ @ @ と 、 かつて は 無遠慮 、 が さつ 、 やかましい など の 点 で 評価 の 低かった 米国 人 @ の マナー が 改善 さ れ 、 優秀な 観光 客 と 評価 さ れ 、 フランス 人 @ 、 中国 @ 人 @ 、 ドイツ 人 @ は ケチな 観光 客 と 評さ れた 。 また ファッション センス の 良 さ で 評価 さ れた の は 、 フランス 人 @ 、 イタリア 人 @ 、 スペイン 人 @ で 、 身だしなみ に 気 を 使わ ない 印象 を 与えた の は 、 旅 で の 動き やす さ や 快適 さ を 重視 する ドイツ 人 @ 、 イギリス 人 @ 、 アメリカ 人 @ だった 。",
+ "酒好きであり 、 また ヘビースモーカー だった 。 マルクス が ラファルグ @ に 語った ところ に よる @ @ @ と 「 資本 論 は 私 が それ を 書く 時 に 吸った 葉巻 代 に すら なら @ なかった 」 と いう 。 家計 の 節約 の ため に 安物 で 質 @ の 悪い 葉巻 を 吸い 、 体調 を 壊して 医者 に 止め @ @ られて いる 。",
+ "1996 年 （ 平成 8 年 ） 3 月 改正 より 一部 列車 が 、 2003 年 （ 平成 15 年 ） 10 月 改正 で 全 列車 が 270 \\ km /h 運転 と なった @ 。 さらに 2015 年 （ 平成 27 年 ） 3 月 改正 より 下り @ 列車 1 本 が 285 \\ km /h 運転 と なって @ いる 。",
+ "生体 内 に は 分子 レベル の 機械 システム が ある こと は 明らかだ が 、 人工 の 分子 機械 は まだ 研究 が 始まった ばかりである 。 人工 の 分子 機械 の 研究 で は カリフォルニア 大学 バー クレー 校 と ローレンス ・ バークレー 国立 研究 所 @ の \\ の 研究 が 知ら れて いる 。 彼 ら は 外部 から 印加 する 電圧 で 制御 できる 3 種類 の 分子 デバイス の 試作 に 成功 して いる 。",
+ "その後 、 過密 日程 の 緩和 の 観点 から 、 第 97 回 （ 2017 年度 ） は 4 月 開幕 、 第 98 回 （ 2018 年度 ） 以降 は 5 月 開幕 と なって @ おり 、 概ね 以下 の ような 日程 が 組ま れて いる 。 なお 、 他の 公式 戦 @ （ リーグ 戦 @ や AFC チャンピオンズリーグ ・ FIFA クラブ ワールドカップ など ） と 日程 が 重複 または 近接 する 場合 に は 、 当該 試合 に 関わる チーム の 天皇 杯 の 試合 は 予備 日 （ 基本 的に 当該 試合 日 の 翌 水曜日 または 翌 土曜日 ） に 開催 さ れる 。",
+ "陸軍 の 装備 品 @ は 迫撃砲 や 分隊 支援 火器 等 の 小 火器 のみ である 。 砲兵 戦力 および 機甲 戦力 は 有さ ず 、 装甲 兵員 輸送 車 @ も 一部 の 部隊 に 若干 数 @ が 配備 さ れる に とどまる 。 小 火器 は 、 84ミリ 迫撃砲 、 AK - 101 、 FN \\ A L 、 H &a m p ; K \\ 3 、 FN \\ ブローニング ・ ハイパワー の 装備 が 確認 さ れて いる 。",
+ "また スペイン の 植民 地 支配 システム は エンコミエンダ 制 と 呼ば れ 、 植民 者 に 征服 地 の 統治 を 委任 する 内容 だった ため 、 恣意 的 かつ 搾取 収 奪 的 統治 が 行わ れた 。 また 、 スペイン 人 @ に よる @ @ @ 先住 民 @ へ の 苦役 など 苛酷な 支配 、 従来 の 食糧 生産 システム の 破壊 に よる @ @ @ 飢餓 など が 、 先住 民 @ の 死亡 率 を 高めた 。 カトリック 司祭 であった ラス ・ カサス @ は このような 事態 を 憂慮 して 、 スペイン 王室 へ 直訴 した ため 、 1550 年 に は 「 バリャドリード 論争 」 と よば れる 植民 地 問題 に 関する 一連の 議論 が 交わさ れた 。",
+ "他の 遺跡 に も 独自の 時期 区分 が あり つつ も 比較 検討 の ため に ワシャクトゥン の 時期 区分 名 @ が 使用 さ れる 。 ただし 、 ユカタン 半島 北部 や グアテマラ 高地 の 遺跡 に は 適用 さ れ ない 。",
+ "2018 年 3 月 17 日 の ダイヤ 改正 より 千代田 @ 線 直通 列車 が 朝夕 を 中心 に 設定 さ れた 。 新松田 駅 \\ \\ 小田原 @ 駅 間 の 日中 の 運行 本数 は 1 時間 3 本 に 削減 さ れた 。",
+ "国 @ 内 に 急速に 不満 が 広まり 、 多く の 人々 が メアリー の 宗教 政策 に 対抗 する 存在 と して エリザベス に 注目 した 。 そして 、 1554 年 1 月 から 2 月 に かけて @ @ @ @ @ イングランド と ウェールズ の 各地 で トマス ・ ワイアット に 率い られた 反乱 が 発生 する （ ワイアット の 乱 ） 。",
+ "現在 は 全て の ビジョン に おいて 表示 さ れて い ない 。 ただし 、 阪神 が 主催 ゲーム を 行う 場合 に は 、 ビジョン で 案内 さ れて いる 。",
+ "米国 陸軍 は 、 アメリカ の 武 官 組織 であり 、 国防 総 省 の 3 つ の 軍事 部門 の うち の 1 つ である 陸軍 省 に 属して いる 。 米国 陸軍 は 、 上級 任命 の 文 官 である 陸軍 長官 （ SECARMY ） と 、 軍 の 最高 責任 者 である 陸軍 参謀 長 （ CSA ） が 指揮 を 執って おり 、 統合 参謀 本部 の メンバー で も ある 。 陸軍 は 最大の 兵科 であり 、 2020 年度 の 正規 軍 （ USA ） の 末端 兵力 は 480 , 893 人 、 陸軍 州兵 （ ARNG ） は 336 , 129 人 、 米 陸軍 予備 役 （ USAR ） は 188 , 703 人 、 米 陸軍 の 複合 コンポーネント 兵力 は 1 , 005 , 725 人 と 予測 さ れて いる 。 軍隊 の 一 部門 である アメリカ 陸軍 の 使命 は 、 「 戦闘 指揮 官 を 支援 し 、 あらゆる 軍事 作戦 と 紛争 の 範囲 に おいて 、 迅速 かつ 持続 的な 陸軍 支配 を 提供 する こと に より @ @ @ 、 わが国 の 戦争 を 戦い 、 勝利 する こと 」 である 。 陸軍 は 、 世界 中 の 紛争 に 参加 し 、 米国 の 主要な 地上 攻撃 ・ 防御 部隊 と なって @ いる 。",
+ "計量 法 に おける ピーエッチ は 、 濃度 の 計量 単位 であり 、 “ モル 毎 リットル で 表した @ 水素 イオン 濃度 の 値 @ に 、 活動 度 @ 係数 を 乗じた 値 @ の 逆数 の 常用 対 @ 数 ” である 。 計量 法 で は 、 pH の 読み が 「 ピーエッチ 」 と いう 位置付け で は なく 、 「 ピー エッチ 」 そのもの が 計量 単位 であり 、 ピーエッチ の 単位 記号 が 「 pH 」 である 。 計量 法 ・ 計量 単位 令 ・ 計量 単位 規則 で は 、 「 水素 イオン 指数 」 と 「 水素 イオン 濃度 指数 」 の 2 語 は 用い られて い ない 。",
+ "キエフ 総主教 庁 ・ ウクライナ 正 教会 の 教会 法 上 の 合法 性 を 認めて いる 他 国 @ の 正 教会 は 長らく 存在 して い なかった が 、 キエフ 総主教 庁 は 教会 法 解釈 ・ 歴史 認識 に つき @ @ @ @ @ 主張 を し つつ 、 自ら @ の 合法 性 の 承認 を 得る べく 様々な 活動 を 行って おり 、 信徒 数 の 上 でも ウクライナ に おける 最大の 教会 と なって @ いる 。 なお 、 懸案 だった ロシア 正教 @ 会 から の 独立 問題 に ついて @ @ @ @ @ は 、 2014 年 に ロシア が クリミア @ 半島 を 併合 した こと に よる @ @ @ 反 ロ 感情 の 高まり を 受け 、 2018 年 10 月 11 日 に コンスタンティノープル 総主教 庁 から 独立 の 承認 を 得る こと に 成功 した 。"]
+```
+
+## Tokenizer
+
+We use [ku-nlp/deberta-v2-base-japanese](https://huggingface.co/ku-nlp/deberta-v2-base-japanese) for a tokenizer and a linguistic model for embedding.
+
+Since Bumblebee currently doesn't support DeBERTa, we use `Bumblebee.Text.BartTokenizer` as a related module instead. It's hackish, though.
+
+```elixir
+{:ok, tokenizer} =
+  Bumblebee.load_tokenizer(
+    {:hf, "ku-nlp/deberta-v2-base-japanese"},
+    module: Bumblebee.Text.BartTokenizer
+  )
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:ok,
+ %Bumblebee.Text.BartTokenizer{
+   tokenizer: #Tokenizers.Tokenizer<[
+     vocab_size: 32000,
+     min_score: -21.820940017700195,
+     model_type: "bpe"
+   ]>,
+   special_tokens: %{
+     bos: "[CLS]",
+     cls: "[CLS]",
+     eos: "[SEP]",
+     mask: "[MASK]",
+     pad: "[PAD]",
+     sep: "[SEP]",
+     unk: "[UNK]"
+   }
+ }}
+```
+
+```elixir
+inputs = Bumblebee.apply_tokenizer(tokenizer, preprocessed)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+%{
+  "attention_mask" => #Nx.Tensor<
+    u32[50][266]
+    EXLA.Backend<host:0, 0.2360421930.1766457364.107712>
+    [
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...],
+      ...
+    ]
+  >,
+  "input_ids" => #Nx.Tensor<
+    u32[50][266]
+    EXLA.Backend<host:0, 0.2360421930.1766457364.107711>
+    [
+      [1, 16526, 456, 266, 261, 3129, 2996, 1141, 265, 1776, 268, 275, 261, 6516, 1588, 273, 762, 15250, 1588, 271, 285, 3979, 286, 261, 1045, 273, 23257, 262, 271, 10655, 1133, 265, 7854, 268, 279, 5746, 2294, 2738, 1087, 265, 3990, 263, 327, 2477, 269, 266, 6516, 1588, ...],
+      ...
+    ]
+  >,
+  "token_type_ids" => #Nx.Tensor<
+    u32[50][266]
+    EXLA.Backend<host:0, 0.2360421930.1766457364.107713>
+    [
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...],
+      ...
+    ]
+  >
+}
+```
+
+## Embedding
+
+```elixir
+{:ok, %{model: model, params: params, spec: spec}} =
+  Bumblebee.load_model(
+    {:hf, "ku-nlp/deberta-v2-base-japanese"},
+    module: Bumblebee.Text.Bart
+  )
+
+IO.puts("suppress the long long output...")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+suppress the long long output...
+
+13:50:52.213 [debug] the following parameters were missing:
+
+  * decoder.blocks.1.cross_attention.output.kernel
+  * decoder.blocks.1.cross_attention.output.bias
+  * decoder.blocks.6.cross_attention.value.kernel
+  * decoder.blocks.6.cross_attention.value.bias
+  * encoder.blocks.5.self_attention.output.kernel
+  * encoder.blocks.5.self_attention.output.bias
+  * encoder.blocks.9.self_attention.output.kernel
+  * encoder.blocks.9.self_attention.output.bias
+  * decoder.blocks.10.self_attention.query.kernel
+  * decoder.blocks.10.self_attention.query.bias
+  * encoder.blocks.11.self_attention.output.kernel
+  * encoder.blocks.11.self_attention.output.bias
+  * decoder_embedder.token_embedding.kernel
+  * encoder.blocks.3.output_norm.gamma
+  * encoder.blocks.3.output_norm.beta
+  * decoder.blocks.1.self_attention_norm.gamma
+  * decoder.blocks.1.self_attention_norm.beta
+  * encoder.blocks.7.output_norm.gamma
+  * encoder.blocks.7.output_norm.beta
+  * encoder.blocks.7.self_attention.query.kernel
+  * encoder.blocks.7.self_attention.query.bias
+  * decoder.blocks.5.cross_attention.query.kernel
+  * decoder.blocks.5.cross_attention.query.bias
+  * decoder.blocks.4.cross_attention.output.kernel
+  * decoder.blocks.4.cross_attention.output.bias
+  * decoder.blocks.5.cross_attention.value.kernel
+  * decoder.blocks.5.cross_attention.value.bias
+  * decoder.blocks.2.self_attention.key.kernel
+  * decoder.blocks.2.self_attention.key.bias
+  * decoder.blocks.6.ffn.intermediate.kernel
+  * decoder.blocks.6.ffn.intermediate.bias
+  * decoder.blocks.3.cross_attention_norm.gamma
+  * decoder.blocks.3.cross_attention_norm.beta
+  * encoder.blocks.0.ffn.intermediate.kernel
+  * encoder.blocks.0.ffn.intermediate.bias
+  * decoder.blocks.9.cross_attention_norm.gamma
+  * decoder.blocks.9.cross_attention_norm.beta
+  * decoder.blocks.3.cross_attention.output.kernel
+  * decoder.blocks.3.cross_attention.output.bias
+  * encoder.blocks.11.output_norm.gamma
+  * encoder.blocks.11.output_norm.beta
+  * encoder.blocks.0.self_attention.key.kernel
+  * encoder.blocks.0.self_attention.key.bias
+  * decoder.blocks.9.ffn.intermediate.kernel
+  * decoder.blocks.9.ffn.intermediate.bias
+  * decoder.blocks.5.ffn.intermediate.kernel
+  * decoder.blocks.5.ffn.intermediate.bias
+  * encoder.blocks.8.self_attention.key.kernel
+  * encoder.blocks.8.self_attention.key.bias
+  * encoder.blocks.11.self_attention.key.kernel
+  * encoder.blocks.11.self_attention.key.bias
+  * decoder.blocks.11.cross_attention.query.kernel
+  * decoder.blocks.11.cross_attention.query.bias
+  * decoder.blocks.4.ffn.intermediate.kernel
+  * decoder.blocks.4.ffn.intermediate.bias
+  * decoder.blocks.0.self_attention.key.kernel
+  * decoder.blocks.0.self_attention.key.bias
+  * encoder.blocks.7.ffn.intermediate.kernel
+  * encoder.blocks.7.ffn.intermediate.bias
+  * decoder.blocks.0.self_attention.value.kernel
+  * decoder.blocks.0.self_attention.value.bias
+  * encoder.blocks.1.self_attention.key.kernel
+  * encoder.blocks.1.self_attention.key.bias
+  * encoder.blocks.0.self_attention.value.kernel
+  * encoder.blocks.0.self_attention.value.bias
+  * encoder.blocks.2.self_attention.query.kernel
+  * encoder.blocks.2.self_attention.query.bias
+  * encoder.blocks.11.ffn.output.kernel
+  * encoder.blocks.11.ffn.output.bias
+  * decoder.blocks.5.self_attention.output.kernel
+  * decoder.blocks.5.self_attention.output.bias
+  * decoder.blocks.10.cross_attention.output.kernel
+  * decoder.blocks.10.cross_attention.output.bias
+  * decoder.blocks.0.cross_attention.value.kernel
+  * decoder.blocks.0.cross_attention.value.bias
+  * decoder.blocks.1.ffn.intermediate.kernel
+  * decoder.blocks.1.ffn.intermediate.bias
+  * decoder.blocks.9.cross_attention.value.kernel
+  * decoder.blocks.9.cross_attention.value.bias
+  * encoder.blocks.0.self_attention.query.kernel
+  * encoder.blocks.0.self_attention.query.bias
+  * encoder.blocks.7.self_attention_norm.gamma
+  * encoder.blocks.7.self_attention_norm.beta
+  * encoder.blocks.5.ffn.intermediate.kernel
+  * encoder.blocks.5.ffn.intermediate.bias
+  * decoder_embedder.position_embedding.kernel
+  * decoder.blocks.5.cross_attention_norm.gamma
+  * decoder.blocks.5.cross_attention_norm.beta
+  * decoder.blocks.6.cross_attention.query.kernel
+  * decoder.blocks.6.cross_attention.query.bias
+  * decoder.blocks.11.self_attention.key.kernel
+  * decoder.blocks.11.self_attention.key.bias
+  * decoder.blocks.9.output_norm.gamma
+  * decoder.blocks.9.output_norm.beta
+  * decoder.blocks.6.self_attention.query.kernel
+  * decoder.blocks.6.self_attention.query.bias
+  * decoder.blocks.6.self_attention_norm.gamma
+  * decoder.blocks.6.self_attention_norm.beta
+  * encoder.blocks.9.ffn.intermediate.kernel
+  * encoder.blocks.9.ffn.intermediate.bias
+  * decoder.blocks.8.cross_attention.query.kernel
+  * decoder.blocks.8.cross_attention.query.bias
+  * decoder.blocks.9.self_attention.query.kernel
+  * decoder.blocks.9.self_attention.query.bias
+  * encoder.blocks.3.self_attention_norm.gamma
+  * encoder.blocks.3.self_attention_norm.beta
+  * decoder.blocks.10.cross_attention.query.kernel
+  * decoder.blocks.10.cross_attention.query.bias
+  * decoder.blocks.4.output_norm.gamma
+  * decoder.blocks.4.output_norm.beta
+  * decoder.blocks.0.self_attention.output.kernel
+  * decoder.blocks.0.self_attention.output.bias
+  * decoder.blocks.1.cross_attention.value.kernel
+  * decoder.blocks.1.cross_attention.value.bias
+  * decoder.blocks.10.cross_attention.key.kernel
+  * decoder.blocks.10.cross_attention.key.bias
+  * encoder.blocks.5.ffn.output.kernel
+  * encoder.blocks.5.ffn.output.bias
+  * decoder.blocks.2.self_attention.query.kernel
+  * decoder.blocks.2.self_attention.query.bias
+  * decoder.blocks.3.output_norm.gamma
+  * decoder.blocks.3.output_norm.beta
+  * decoder.blocks.4.self_attention_norm.gamma
+  * decoder.blocks.4.self_attention_norm.beta
+  * encoder.blocks.5.self_attention.value.kernel
+  * encoder.blocks.5.self_attention.value.bias
+  * decoder.blocks.3.self_attention.query.kernel
+  * decoder.blocks.3.self_attention.query.bias
+  * encoder.blocks.8.ffn.intermediate.kernel
+  * encoder.blocks.8.ffn.intermediate.bias
+  * encoder.blocks.0.ffn.output.kernel
+  * encoder.blocks.0.ffn.output.bias
+  * encoder.blocks.1.self_attention.query.kernel
+  * encoder.blocks.1.self_attention.query.bias
+  * encoder.blocks.1.ffn.intermediate.kernel
+  * encoder.blocks.1.ffn.intermediate.bias
+  * decoder.blocks.0.cross_attention.output.kernel
+  * decoder.blocks.0.cross_attention.output.bias
+  * encoder.blocks.2.self_attention_norm.gamma
+  * encoder.blocks.2.self_attention_norm.beta
+  * decoder.blocks.9.self_attention.value.kernel
+  * decoder.blocks.9.self_attention.value.bias
+  * decoder.blocks.6.cross_attention_norm.gamma
+  * decoder.blocks.6.cross_attention_norm.beta
+  * decoder.blocks.7.cross_attention.output.kernel
+  * decoder.blocks.7.cross_attention.output.bias
+  * encoder.blocks.11.self_attention_norm.gamma
+  * encoder.blocks.11.self_attention_norm.beta
+  * decoder.blocks.9.self_attention.output.kernel
+  * decoder.blocks.9.self_attention.output.bias
+  * decoder.blocks.8.self_attention.key.kernel
+  * decoder.blocks.8.self_attention.key.bias
+  * decoder.blocks.1.self_attention.value.kernel
+  * decoder.blocks.1.self_attention.value.bias
+  * decoder.blocks.2.cross_attention.output.kernel
+  * decoder.blocks.2.cross_attention.output.bias
+  * decoder.blocks.2.self_attention_norm.gamma
+  * decoder.blocks.2.self_attention_norm.beta
+  * encoder.blocks.0.output_norm.gamma
+  * encoder.blocks.0.output_norm.beta
+  * decoder.blocks.3.self_attention_norm.gamma
+  * decoder.blocks.3.self_attention_norm.beta
+  * encoder.blocks.4.ffn.intermediate.kernel
+  * encoder.blocks.4.ffn.intermediate.bias
+  * decoder.blocks.10.cross_attention.value.kernel
+  * decoder.blocks.10.cross_attention.value.bias
+  * decoder.blocks.2.ffn.output.kernel
+  * decoder.blocks.2.ffn.output.bias
+  * decoder.blocks.11.self_attention.value.kernel
+  * decoder.blocks.11.self_attention.value.bias
+  * encoder.blocks.5.self_attention.query.kernel
+  * encoder.blocks.5.self_attention.query.bias
+  * decoder.blocks.11.output_norm.gamma
+  * decoder.blocks.11.output_norm.beta
+  * decoder. (truncated)
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+
+13:50:52.213 [debug] the following PyTorch parameters were unused:
+
+  * cls.predictions.bias
+  * cls.predictions.decoder.bias
+  * cls.predictions.decoder.weight
+  * cls.predictions.transform.LayerNorm.bias
+  * cls.predictions.transform.LayerNorm.weight
+  * cls.predictions.transform.dense.bias
+  * cls.predictions.transform.dense.weight
+  * deberta.embeddings.LayerNorm.bias
+  * deberta.embeddings.LayerNorm.weight
+  * deberta.embeddings.position_ids
+  * deberta.embeddings.word_embeddings.weight
+  * deberta.encoder.LayerNorm.bias
+  * deberta.encoder.LayerNorm.weight
+  * deberta.encoder.conv.LayerNorm.bias
+  * deberta.encoder.conv.LayerNorm.weight
+  * deberta.encoder.conv.conv.bias
+  * deberta.encoder.conv.conv.weight
+  * deberta.encoder.layer.0.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.0.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.0.attention.output.dense.bias
+  * deberta.encoder.layer.0.attention.output.dense.weight
+  * deberta.encoder.layer.0.attention.self.key_proj.bias
+  * deberta.encoder.layer.0.attention.self.key_proj.weight
+  * deberta.encoder.layer.0.attention.self.query_proj.bias
+  * deberta.encoder.layer.0.attention.self.query_proj.weight
+  * deberta.encoder.layer.0.attention.self.value_proj.bias
+  * deberta.encoder.layer.0.attention.self.value_proj.weight
+  * deberta.encoder.layer.0.intermediate.dense.bias
+  * deberta.encoder.layer.0.intermediate.dense.weight
+  * deberta.encoder.layer.0.output.LayerNorm.bias
+  * deberta.encoder.layer.0.output.LayerNorm.weight
+  * deberta.encoder.layer.0.output.dense.bias
+  * deberta.encoder.layer.0.output.dense.weight
+  * deberta.encoder.layer.1.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.1.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.1.attention.output.dense.bias
+  * deberta.encoder.layer.1.attention.output.dense.weight
+  * deberta.encoder.layer.1.attention.self.key_proj.bias
+  * deberta.encoder.layer.1.attention.self.key_proj.weight
+  * deberta.encoder.layer.1.attention.self.query_proj.bias
+  * deberta.encoder.layer.1.attention.self.query_proj.weight
+  * deberta.encoder.layer.1.attention.self.value_proj.bias
+  * deberta.encoder.layer.1.attention.self.value_proj.weight
+  * deberta.encoder.layer.1.intermediate.dense.bias
+  * deberta.encoder.layer.1.intermediate.dense.weight
+  * deberta.encoder.layer.1.output.LayerNorm.bias
+  * deberta.encoder.layer.1.output.LayerNorm.weight
+  * deberta.encoder.layer.1.output.dense.bias
+  * deberta.encoder.layer.1.output.dense.weight
+  * deberta.encoder.layer.10.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.10.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.10.attention.output.dense.bias
+  * deberta.encoder.layer.10.attention.output.dense.weight
+  * deberta.encoder.layer.10.attention.self.key_proj.bias
+  * deberta.encoder.layer.10.attention.self.key_proj.weight
+  * deberta.encoder.layer.10.attention.self.query_proj.bias
+  * deberta.encoder.layer.10.attention.self.query_proj.weight
+  * deberta.encoder.layer.10.attention.self.value_proj.bias
+  * deberta.encoder.layer.10.attention.self.value_proj.weight
+  * deberta.encoder.layer.10.intermediate.dense.bias
+  * deberta.encoder.layer.10.intermediate.dense.weight
+  * deberta.encoder.layer.10.output.LayerNorm.bias
+  * deberta.encoder.layer.10.output.LayerNorm.weight
+  * deberta.encoder.layer.10.output.dense.bias
+  * deberta.encoder.layer.10.output.dense.weight
+  * deberta.encoder.layer.11.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.11.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.11.attention.output.dense.bias
+  * deberta.encoder.layer.11.attention.output.dense.weight
+  * deberta.encoder.layer.11.attention.self.key_proj.bias
+  * deberta.encoder.layer.11.attention.self.key_proj.weight
+  * deberta.encoder.layer.11.attention.self.query_proj.bias
+  * deberta.encoder.layer.11.attention.self.query_proj.weight
+  * deberta.encoder.layer.11.attention.self.value_proj.bias
+  * deberta.encoder.layer.11.attention.self.value_proj.weight
+  * deberta.encoder.layer.11.intermediate.dense.bias
+  * deberta.encoder.layer.11.intermediate.dense.weight
+  * deberta.encoder.layer.11.output.LayerNorm.bias
+  * deberta.encoder.layer.11.output.LayerNorm.weight
+  * deberta.encoder.layer.11.output.dense.bias
+  * deberta.encoder.layer.11.output.dense.weight
+  * deberta.encoder.layer.2.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.2.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.2.attention.output.dense.bias
+  * deberta.encoder.layer.2.attention.output.dense.weight
+  * deberta.encoder.layer.2.attention.self.key_proj.bias
+  * deberta.encoder.layer.2.attention.self.key_proj.weight
+  * deberta.encoder.layer.2.attention.self.query_proj.bias
+  * deberta.encoder.layer.2.attention.self.query_proj.weight
+  * deberta.encoder.layer.2.attention.self.value_proj.bias
+  * deberta.encoder.layer.2.attention.self.value_proj.weight
+  * deberta.encoder.layer.2.intermediate.dense.bias
+  * deberta.encoder.layer.2.intermediate.dense.weight
+  * deberta.encoder.layer.2.output.LayerNorm.bias
+  * deberta.encoder.layer.2.output.LayerNorm.weight
+  * deberta.encoder.layer.2.output.dense.bias
+  * deberta.encoder.layer.2.output.dense.weight
+  * deberta.encoder.layer.3.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.3.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.3.attention.output.dense.bias
+  * deberta.encoder.layer.3.attention.output.dense.weight
+  * deberta.encoder.layer.3.attention.self.key_proj.bias
+  * deberta.encoder.layer.3.attention.self.key_proj.weight
+  * deberta.encoder.layer.3.attention.self.query_proj.bias
+  * deberta.encoder.layer.3.attention.self.query_proj.weight
+  * deberta.encoder.layer.3.attention.self.value_proj.bias
+  * deberta.encoder.layer.3.attention.self.value_proj.weight
+  * deberta.encoder.layer.3.intermediate.dense.bias
+  * deberta.encoder.layer.3.intermediate.dense.weight
+  * deberta.encoder.layer.3.output.LayerNorm.bias
+  * deberta.encoder.layer.3.output.LayerNorm.weight
+  * deberta.encoder.layer.3.output.dense.bias
+  * deberta.encoder.layer.3.output.dense.weight
+  * deberta.encoder.layer.4.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.4.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.4.attention.output.dense.bias
+  * deberta.encoder.layer.4.attention.output.dense.weight
+  * deberta.encoder.layer.4.attention.self.key_proj.bias
+  * deberta.encoder.layer.4.attention.self.key_proj.weight
+  * deberta.encoder.layer.4.attention.self.query_proj.bias
+  * deberta.encoder.layer.4.attention.self.query_proj.weight
+  * deberta.encoder.layer.4.attention.self.value_proj.bias
+  * deberta.encoder.layer.4.attention.self.value_proj.weight
+  * deberta.encoder.layer.4.intermediate.dense.bias
+  * deberta.encoder.layer.4.intermediate.dense.weight
+  * deberta.encoder.layer.4.output.LayerNorm.bias
+  * deberta.encoder.layer.4.output.LayerNorm.weight
+  * deberta.encoder.layer.4.output.dense.bias
+  * deberta.encoder.layer.4.output.dense.weight
+  * deberta.encoder.layer.5.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.5.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.5.attention.output.dense.bias
+  * deberta.encoder.layer.5.attention.output.dense.weight
+  * deberta.encoder.layer.5.attention.self.key_proj.bias
+  * deberta.encoder.layer.5.attention.self.key_proj.weight
+  * deberta.encoder.layer.5.attention.self.query_proj.bias
+  * deberta.encoder.layer.5.attention.self.query_proj.weight
+  * deberta.encoder.layer.5.attention.self.value_proj.bias
+  * deberta.encoder.layer.5.attention.self.value_proj.weight
+  * deberta.encoder.layer.5.intermediate.dense.bias
+  * deberta.encoder.layer.5.intermediate.dense.weight
+  * deberta.encoder.layer.5.output.LayerNorm.bias
+  * deberta.encoder.layer.5.output.LayerNorm.weight
+  * deberta.encoder.layer.5.output.dense.bias
+  * deberta.encoder.layer.5.output.dense.weight
+  * deberta.encoder.layer.6.attention.output.LayerNorm.bias
+  * deberta.encoder.layer.6.attention.output.LayerNorm.weight
+  * deberta.encoder.layer.6.attention.output.dense.bias
+  * deberta.encoder.layer.6.atte (truncated)
+
+```
+
+```elixir
+outputs = Axon.predict(model, params, inputs)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+%{
+  cache: #Axon.None<...>,
+  cross_attentions: #Axon.None<...>,
+  decoder_attentions: #Axon.None<...>,
+  decoder_hidden_states: #Axon.None<...>,
+  encoder_attentions: #Axon.None<...>,
+  encoder_hidden_state: #Nx.Tensor<
+    f32[50][266][1024]
+    EXLA.Backend<host:0, 0.2360421930.1766457364.108636>
+    [
+      [
+        [0.6126583814620972, -2.1102702617645264, 0.13675275444984436, 0.06399396806955338, 0.00602921936661005, 0.2257757931947708, -0.007863705046474934, -0.13207927346229553, -0.05181087926030159, -0.5740871429443359, -0.0036345068365335464, -0.4553746283054352, 0.041108205914497375, -0.1237834170460701, -0.42095643281936646, 0.2612243592739105, 1.0411511659622192, 1.1128239631652832, -0.09526826441287994, -0.12970729172229767, 0.41379329562187195, 0.21994884312152863, -0.07996617257595062, -1.2729568481445312, 0.35166776180267334, 0.08263030648231506, 0.07995341718196869, -0.9454743266105652, 0.3771441876888275, 0.7238381505012512, -0.008489547297358513, -0.3729128837585449, -0.3297499120235443, 1.1579701900482178, -1.2025402784347534, -0.0027809953317046165, 0.3789995610713959, -0.4045521318912506, -0.04887565225362778, -0.42576971650123596, -0.07607216387987137, 1.511717438697815, 0.7700494527816772, 0.5095267295837402, ...],
+        ...
+      ],
+      ...
+    ]
+  >,
+  encoder_hidden_states: #Axon.None<...>,
+  hidden_state: #Nx.Tensor<
+    f32[50][266][1024]
+    EXLA.Backend<host:0, 0.2360421930.1766457364.110150>
+    [
+      [
+        [0.5086706876754761, -0.08092417567968369, 0.32203322649002075, -0.8490794897079468, -0.018199916929006577, -0.43330860137939453, 1.108025074005127, 0.0026226032059639692, -0.25060904026031494, -0.27727118134498596, 0.2219816893339157, -0.6439535021781921, 0.4201953113079071, -0.1079673320055008, -3.458491802215576, -0.21127240359783173, 0.050890084356069565, 0.022660069167613983, 0.525284469127655, -1.3662115335464478, -1.2565923929214478, 0.7897079586982727, -0.40388956665992737, -0.4420923590660095, -0.2742520272731781, -0.04766678065061569, -0.6371666789054871, 0.28678664565086365, -0.5839983224868774, -0.5641136765480042, 0.16405224800109863, 0.7102792859077454, -0.6557484865188599, 0.8121824860572815, 0.0696544274687767, -0.10650807619094849, 0.42042532563209534, -1.5211730003356934, -0.014622707851231098, 0.1587163805961609, 0.24423551559448242, 0.41921964287757874, ...],
+        ...
+      ],
+      ...
+    ]
+  >
+}
+```
+
+In the code below, we calcurate means for columns of hidden states, which represent sentence vectors.
+
+```elixir
+outputs.hidden_state[0] |> Nx.mean(axes: [0])
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+#Nx.Tensor<
+  f32[1024]
+  EXLA.Backend<host:0, 0.2360421930.1766457364.110157>
+  [0.3941330313682556, -0.06064549833536148, 0.36418989300727844, -0.5985559225082397, 0.0045594098046422005, -0.4444641172885895, 1.3067785501480103, 0.0027836363296955824, -2.1928536891937256, -3.4244604110717773, 0.2065287083387375, -0.46628668904304504, 1.7798439264297485, -0.12221402674913406, -4.639316558837891, -1.3650344610214233, 0.5184873938560486, 0.10328911244869232, 0.3788415193557739, 0.029969215393066406, 0.4863915741443634, 0.7670631408691406, 0.0021555637940764427, -0.4009239673614502, -0.20393066108226776, -0.20730893313884735, -0.12852557003498077, 0.30283457040786743, -0.9288793802261353, -0.8078621625900269, 0.38242965936660767, 0.014187473803758621, -0.695867657661438, 1.6673752069473267, 0.04087090492248535, -0.2464519590139389, 0.23313160240650177, -0.616675078868866, 0.006032815668731928, 0.2559294104576111, 0.047239091247320175, 0.8647549748420715, 0.2617781460285187, 2.0964324474334717, 0.2986380159854889, 0.022176578640937805, -0.01723928190767765, -0.004148632753640413, 0.00803783256560564, 1.2544965744018555, ...]
+>
+```
+
+## Vector Store
+
+We use [ex_faiss](https://github.com/elixir-nx/ex_faiss) which is a wrapper library of Faiss similarity search engine.
+
+```elixir
+index = ExFaiss.Index.new(1024, "Flat")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+%ExFaiss.Index{dim: 1024, ref: #Reference<0.2360421930.1770127361.117727>, device: :host}
+```
+
+```elixir
+{count, _, _} = outputs.hidden_state |> Nx.shape()
+
+index =
+  0..(count - 1)
+  |> Enum.reduce(index, fn i, acc ->
+    acc |> ExFaiss.Index.add(outputs.hidden_state[i] |> Nx.mean(axes: [0]))
+  end)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+%ExFaiss.Index{dim: 1024, ref: #Reference<0.2360421930.1770127361.117727>, device: :host}
+```
+
+In the code below, we send a query to the vector search engine. The query is converted into an embedding using the same method above.
+
+```elixir
+query =
+  "イベリア半島にある、ウマイヤ朝の属州になったことのある国は？"
+  |> Jumanpp.parse!()
+  |> Enum.map(fn token ->
+    token |> Map.get(:surface)
+  end)
+  |> Enum.join(" ")
+
+query_input =
+  tokenizer
+  |> Bumblebee.apply_tokenizer(query)
+
+query_output = Axon.predict(model, params, query_input)
+query_vector = query_output.hidden_state[0] |> Nx.mean(axes: [0])
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+#Nx.Tensor<
+  f32[1024]
+  EXLA.Backend<host:0, 0.2360421930.1766457364.144627>
+  [0.27492111921310425, -0.05051393061876297, 0.6802582740783691, -1.175004005432129, 0.02900567092001438, -0.3420788645744324, 1.3187861442565918, 0.0032371412962675095, -1.9862871170043945, -1.9999759197235107, 0.15707679092884064, -1.1652889251708984, 0.5707250237464905, -0.05322665348649025, -3.774259567260742, -0.46837085485458374, 0.15558123588562012, -0.0165045615285635, 0.6772909760475159, -3.2278103828430176, 0.2592530846595764, 0.2455623596906662, 0.2973077893257141, -0.944271981716156, -0.01336640678346157, -0.45661258697509766, 0.32055550813674927, 0.19232700765132904, -1.3470773696899414, -0.8424463868141174, 0.4200177788734436, 0.16760727763175964, -0.02267277240753174, 1.2496731281280518, 0.013176554813981056, -0.1761181801557541, -0.023465439677238464, 0.14161863923072815, 0.009226498194038868, 0.2702595591545105, 0.047561246901750565, 0.4395337402820587, 0.19630973041057587, 1.411736249923706, 0.08868318051099777, -0.15571685135364532, -0.019138002768158913, 3.5049920552410185e-4, -0.12935592234134674, 1.829930305480957, ...]
+>
+```
+
+```elixir
+doc_ids =
+  index
+  |> ExFaiss.Index.search(query_vector, 5)
+  |> Map.get(:labels)
+  |> Nx.to_list()
+  |> List.flatten()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[19, 42, 5, 15, 49]
+```
+
+```elixir
+doc_ids
+|> Enum.map(fn i ->
+  docs |> Enum.at(i)
+end)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+["漢文 [SEP] 黄河流域に発生した黄河文明は、言語を筆記する文字として漢字を生み、漢字で文字記録を行う文化を発達させた。ところが、漢字は異なる言語を用いる複数の文化集団によって受容されたため、漢字による文章を取り交わす圏内で共通の文語が形成されていった。これが、漢文の誕生であると言え、漢文を共通文語として用いる文化圏が、正に後の政治的統一中国の原型となった。最初の長期安定統一政権なる漢代には中央と地方との文書のやり取りの中で漢文法が確立し、以降中国ではこの漢代の伝統的な文法に従って、文章が書かれていくことになり、時代や地域によって口語は多様だったにもかかわらず、文語である漢文の文法上の変化は少なかった。普通「漢文」というと、このような伝統的な文法に従っているもの（正則漢文）を指す。",
+ "メキシコの歴史 [SEP] またスペインの植民地支配システムはエンコミエンダ制と呼ばれ、植民者に征服地の統治を委任する内容だったため、恣意的かつ搾取収奪的統治が行われた。また、スペイン人による先住民への苦役など苛酷な支配、従来の食糧生産システムの破壊による飢餓などが、先住民の死亡率を高めた。カトリック司祭であったラス・カサスはこのような事態を憂慮して、スペイン王室へ直訴したため、1550年には「バリャドリード論争」とよばれる植民地問題に関する一連の議論が交わされた。",
+ "ムハンマド・イブン＝アブドゥッラーフ [SEP] ムハンマド率いるイスラーム共同体は、周辺のベドウィン（アラブ遊牧民）の諸部族と同盟を結んだり、ムハンマドに敵対するマッカの隊商交易を妨害したりしながら、急速に勢力を拡大した。こうして両者の間で睨み合いが続いたが、ある時、マディーナ側はマッカの大規模な隊商を発見し、これを襲撃しようとした。しかし、それは事前にマッカ側に察知され、それを阻止するために倍以上の部隊を繰り出すが、バドルの泉の近くで両者は激突、マディーナ側が勝利した。これをバドルの戦いと呼び、以後イスラム教徒はこれを記念し、この月（9月、ラマダーン月）に断食をするようになった。",
+ "ちびまる子ちゃん [SEP] コミックス版全17巻（りぼんマスコットコミックス）、文庫版全9巻、愛蔵版（特製ちびまる子ちゃん）全5巻、集英社ガールズリミックス版第9 - 10巻の全2巻、および『ちびまる子ちゃん-大野君と杉山君』『ちびまる子ちゃん -わたしの好きな歌』『ちびまる子ちゃん キミを忘れないよ』の映画原作3巻が刊行されている。文庫版は、レギュラー連載の最後となった「その114」（単行本14巻収録分）までの収録となったほか、『ももこのほのぼの劇場』が収録から外された。逆に、『大野君と杉山君』は文庫版の収録対象となった（第4巻に収録）。文庫版の電子書籍はフルカラー化（さきこの冬服など、配色がアニメと異なるケースもある）されている一方、『大野君と杉山君』は外されているほか、収録話数の区切りも紙版とは相違がある。",
+ "ウクライナ [SEP] キエフ総主教庁・ウクライナ正教会の教会法上の合法性を認めている他国の正教会は長らく存在していなかったが、キエフ総主教庁は教会法解釈・歴史認識につき主張をしつつ、自らの合法性の承認を得るべく様々な活動を行っており、信徒数の上でもウクライナにおける最大の教会となっている。なお、懸案だったロシア正教会からの独立問題については、2014年にロシアがクリミア半島を併合したことによる反ロ感情の高まりを受け、2018年10月11日にコンスタンティノープル総主教庁から独立の承認を得ることに成功した。"]
+```
+
+## Calculate cosign similarity by our own
+
+```elixir
+{count, _, _} = outputs.hidden_state |> Nx.shape()
+
+doc_ids =
+  0..(count - 1)
+  |> Enum.map(fn i ->
+    doc_vector = outputs.hidden_state[i] |> Nx.mean(axes: [0])
+    dot_product = Nx.dot(doc_vector, Nx.transpose(query_vector))
+
+    doc_norm = Nx.LinAlg.norm(doc_vector)
+    query_norm = Nx.LinAlg.norm(query_vector)
+
+    {i, Nx.divide(dot_product, Nx.outer(doc_norm, query_norm))}
+  end)
+  |> Enum.sort(fn a, b ->
+    {_, a_tensor} = a
+    {_, b_tensor} = b
+
+    a_value = a_tensor |> Nx.to_list() |> Enum.at(0) |> Enum.at(0)
+    b_value = b_tensor |> Nx.to_list() |> Enum.at(0) |> Enum.at(0)
+
+    b_value >= a_value
+  end)
+  |> Enum.reverse()
+  |> Enum.map(fn data ->
+    {i, _} = data
+    i
+  end)
+  |> Enum.take(5)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[19, 42, 5, 15, 49]
+```
+
+```elixir
+doc_ids
+|> Enum.map(fn i ->
+  docs |> Enum.at(i)
+end)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+["漢文 [SEP] 黄河流域に発生した黄河文明は、言語を筆記する文字として漢字を生み、漢字で文字記録を行う文化を発達させた。ところが、漢字は異なる言語を用いる複数の文化集団によって受容されたため、漢字による文章を取り交わす圏内で共通の文語が形成されていった。これが、漢文の誕生であると言え、漢文を共通文語として用いる文化圏が、正に後の政治的統一中国の原型となった。最初の長期安定統一政権なる漢代には中央と地方との文書のやり取りの中で漢文法が確立し、以降中国ではこの漢代の伝統的な文法に従って、文章が書かれていくことになり、時代や地域によって口語は多様だったにもかかわらず、文語である漢文の文法上の変化は少なかった。普通「漢文」というと、このような伝統的な文法に従っているもの（正則漢文）を指す。",
+ "メキシコの歴史 [SEP] またスペインの植民地支配システムはエンコミエンダ制と呼ばれ、植民者に征服地の統治を委任する内容だったため、恣意的かつ搾取収奪的統治が行われた。また、スペイン人による先住民への苦役など苛酷な支配、従来の食糧生産システムの破壊による飢餓などが、先住民の死亡率を高めた。カトリック司祭であったラス・カサスはこのような事態を憂慮して、スペイン王室へ直訴したため、1550年には「バリャドリード論争」とよばれる植民地問題に関する一連の議論が交わされた。",
+ "ムハンマド・イブン＝アブドゥッラーフ [SEP] ムハンマド率いるイスラーム共同体は、周辺のベドウィン（アラブ遊牧民）の諸部族と同盟を結んだり、ムハンマドに敵対するマッカの隊商交易を妨害したりしながら、急速に勢力を拡大した。こうして両者の間で睨み合いが続いたが、ある時、マディーナ側はマッカの大規模な隊商を発見し、これを襲撃しようとした。しかし、それは事前にマッカ側に察知され、それを阻止するために倍以上の部隊を繰り出すが、バドルの泉の近くで両者は激突、マディーナ側が勝利した。これをバドルの戦いと呼び、以後イスラム教徒はこれを記念し、この月（9月、ラマダーン月）に断食をするようになった。",
+ "ちびまる子ちゃん [SEP] コミックス版全17巻（りぼんマスコットコミックス）、文庫版全9巻、愛蔵版（特製ちびまる子ちゃん）全5巻、集英社ガールズリミックス版第9 - 10巻の全2巻、および『ちびまる子ちゃん-大野君と杉山君』『ちびまる子ちゃん -わたしの好きな歌』『ちびまる子ちゃん キミを忘れないよ』の映画原作3巻が刊行されている。文庫版は、レギュラー連載の最後となった「その114」（単行本14巻収録分）までの収録となったほか、『ももこのほのぼの劇場』が収録から外された。逆に、『大野君と杉山君』は文庫版の収録対象となった（第4巻に収録）。文庫版の電子書籍はフルカラー化（さきこの冬服など、配色がアニメと異なるケースもある）されている一方、『大野君と杉山君』は外されているほか、収録話数の区切りも紙版とは相違がある。",
+ "ウクライナ [SEP] キエフ総主教庁・ウクライナ正教会の教会法上の合法性を認めている他国の正教会は長らく存在していなかったが、キエフ総主教庁は教会法解釈・歴史認識につき主張をしつつ、自らの合法性の承認を得るべく様々な活動を行っており、信徒数の上でもウクライナにおける最大の教会となっている。なお、懸案だったロシア正教会からの独立問題については、2014年にロシアがクリミア半島を併合したことによる反ロ感情の高まりを受け、2018年10月11日にコンスタンティノープル総主教庁から独立の承認を得ることに成功した。"]
+```
